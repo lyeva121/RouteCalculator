@@ -1,1 +1,329 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Расчёт маршрута</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 30px; position: relative; }
+        .developer { position: absolute; top: 10px; right: 20px; font-style: italic; color: gray; font-size: 14px; }
+        .top-inputs { display: flex; align-items: center; gap: 20px; margin-bottom: 20px; }
+        .input-group { display: flex; flex-direction: column; align-items: center; }
+        table { border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid black; text-align: center; padding: 0; }
+        th { background-color: #d9d9d9; padding: 5px; }
+        input { width: 100%; border: none; padding: 8px 0; text-align: center; box-sizing: border-box; font-size: 14px; }
+        input:focus { background-color: #e6f7ff; outline: none; }
+        .point-input { text-align: left; padding-left: 5px; }
+        .label-cell { padding: 8px 0; font-size: 14px; background-color: #fafafa; display: block; min-height: 18px; }
+        .btn-row { display: flex; gap: 10px; margin-bottom: 10px; }
+        button { padding: 8px 15px; font-size: 14px; cursor: pointer; }
+        .calc-btn { width: 250px; height: 50px; font-size: 18px; font-weight: bold; background-color: #4CAF50; color: white; border: none; margin-top: 15px; }
+        .results { margin-top: 15px; font-weight: bold; font-size: 16px; white-space: pre-line; }
+    </style>
+</head>
+<body>
 
+    <div class="developer">Разработчик Лёвочкин Виктор</div>
+    <h2>Расчёт маршрута</h2>
+
+    <div class="top-inputs">
+        <div class="input-group">
+            <label for="speed">Скорость (км/ч)</label>
+            <input type="text" id="speed" style="width: 120px; border: 1px solid #ccc; margin-top: 5px;">
+        </div>
+        <div>
+            <input type="checkbox" id="same_wind" style="width: auto; vertical-align: middle;">
+            <label for="same_wind">Ветер по всему маршруту одинаковый</label>
+        </div>
+    </div>
+
+    <table id="route_table">
+        <thead>
+            <tr>
+                <th rowspan="2" style="width: 200px;">ППМ</th>
+                <th rowspan="2" style="width: 90px;">ЗМПУ</th>
+                <th rowspan="2" style="width: 100px;">Расстояние</th>
+                <th colspan="2">Ветер</th>
+                <th rowspan="2" style="width: 110px;">МК</th>
+                <th rowspan="2" style="width: 200px;">Время</th>
+            </tr>
+            <tr>
+                <th style="width: 90px;">Напр. (°)</th>
+                <th style="width: 100px;">Скор. (км/ч)</th>
+            </tr>
+        </thead>
+        <tbody>
+            </tbody>
+    </table>
+
+    <div class="btn-row">
+        <button onclick="addRow()">Добавить ППМ</button>
+        <button onclick="reverseRoute()">Реверс</button>
+        <button onclick="removeWind()">Убрать ветер</button>
+        <button onclick="newRoute()">Новый маршрут</button>
+    </div>
+
+    <div class="btn-row">
+        <button onclick="saveRoute()">Сохранить</button>
+        <button onclick="openRouteClick()">Открыть</button>
+        <input type="file" id="file_picker" style="display: none;" onchange="loadRoute(event)">
+        <button onclick="exportPDF()">PDF</button>
+    </div>
+
+    <button class="calc-btn" onclick="calculateRoute()">РАСЧЁТ</button>
+
+    <div class="results" id="results_block"></div>
+
+    <script>
+        let rowsCount = 0;
+        let calculatedData = { total_distance: 0, total_time: "0:00", rows: [] };
+
+        function createRow(isFirst = false) {
+            const tbody = document.querySelector("#route_table tbody");
+            const tr = document.createElement("tr");
+            tr.dataset.index = rowsCount;
+
+            tr.innerHTML = `
+                <td><input type="text" class="point-input" data-col="0"></td>
+                <td><input type="text" data-col="1" ${isFirst ? 'disabled value="—"' : ''}></td>
+                <td><input type="text" data-col="2" ${isFirst ? 'disabled value="—"' : ''}></td>
+                <td><input type="text" data-col="3"></td>
+                <td><input type="text" data-col="4"></td>
+                <td><span class="label-cell mk-cell">${isFirst ? '—' : ''}</span></td>
+                <td><span class="label-cell time-cell">${isFirst ? '—' : ''}</span></td>
+            `;
+            tbody.appendChild(tr);
+            rowsCount++;
+        }
+
+        // Инициализация первых 10 строк
+        for (let i = 0; i < 10; i++) {
+            createRow(i === 0);
+        }
+
+        function addRow() {
+            createRow(false);
+        }
+
+        // Навигация стрелками клавиатуры
+        document.getElementById("route_table").addEventListener("keydown", function(e) {
+            if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+                const active = document.activeElement;
+                if (active && active.tagName === "INPUT") {
+                    const col = parseInt(active.dataset.col);
+                    const row = parseInt(active.closest("tr").dataset.index);
+                    let newRow = row, newCol = col;
+
+                    if (e.key === "ArrowUp") newRow--;
+                    if (e.key === "ArrowDown") newRow++;
+                    if (e.key === "ArrowLeft") newCol--;
+                    if (e.key === "ArrowRight") newCol++;
+
+                    const targetInput = document.querySelector(`tr[data-index="${newRow}"] input[data-col="${newCol}"]`);
+                    if (targetInput && !targetInput.disabled) {
+                        e.preventDefault();
+                        targetInput.focus();
+                    }
+                }
+            }
+        });
+
+        function getTableRowsData() {
+            const trs = document.querySelectorAll("#route_table tbody tr");
+            const rows = [];
+            trs.forEach(tr => {
+                const inputs = tr.querySelectorAll("input");
+                rows.push({
+                    point: inputs[0].value,
+                    zmpu: inputs[1].value,
+                    distance: inputs[2].value,
+                    wind_dir: inputs[3].value,
+                    wind_speed: inputs[4].value
+                });
+            });
+            return rows;
+        }
+
+        function calculateRoute() {
+            const speed = document.getElementById("speed").value;
+            const same_wind = document.getElementById("same_wind").checked;
+            const rows = getTableRowsData();
+
+            fetch('/calculate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ speed, same_wind, rows })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                calculatedData = data;
+                // Обновление интерфейса значениями из ответа сервера
+                const trs = document.querySelectorAll("#route_table tbody tr");
+                data.rows.forEach((row, idx) => {
+                    const inputs = trs[idx].querySelectorAll("input");
+                    inputs[3].value = row.wind_dir;
+                    inputs[4].value = row.wind_speed;
+                    trs[idx].querySelector(".mk-cell").textContent = row.mk || "";
+                    trs[idx].querySelector(".time-cell").textContent = row.time || "";
+                });
+
+                document.getElementById("results_block").textContent = 
+                    `Общее расстояние: ${data.total_distance} км\nОбщее время: ${data.total_time}`;
+            });
+        }
+
+        function removeWind() {
+            const trs = document.querySelectorAll("#route_table tbody tr");
+            trs.forEach((tr, idx) => {
+                const inputs = tr.querySelectorAll("input");
+                inputs[3].value = "";
+                inputs[4].value = "";
+                if (inputs[0].value.trim() !== "") {
+                    tr.querySelector(".mk-cell").textContent = idx === 0 ? "—" : "";
+                    tr.querySelector(".time-cell").textContent = idx === 0 ? "—" : "";
+                }
+            });
+            calculatedData.total_distance = 0;
+            calculatedData.total_time = "0:00";
+            document.getElementById("results_block").textContent = "";
+        }
+
+        function newRoute() {
+            document.getElementById("speed").value = "";
+            document.getElementById("same_wind").checked = false;
+            document.querySelector("#route_table tbody").innerHTML = "";
+            rowsCount = 0;
+            for (let i = 0; i < 10; i++) createRow(i === 0);
+            document.getElementById("results_block").textContent = "";
+        }
+
+        function reverseRoute() {
+            const speed = document.getElementById("speed").value;
+            const same_wind = document.getElementById("same_wind").checked;
+            const currentRows = getTableRowsData().filter(r => r.point.trim() !== "");
+
+            if (currentRows.length < 2) {
+                alert("Недостаточно ППМ");
+                return;
+            }
+
+            const revPoints = [...currentRows].reverse();
+            const newRows = [];
+
+            for (let i = 0; i < revPoints.length; i++) {
+                if (i === 0) {
+                    newRows.push({
+                        point: revPoints[i].point, zmpu: "—", distance: "—",
+                        wind_dir: revPoints[i].wind_dir, wind_speed: revPoints[i].wind_speed
+                    });
+                } else {
+                    const prevSourceItem = currentRows[currentRows.length - i];
+                    let reversedZmpu = "";
+                    if (prevSourceItem && prevSourceItem.zmpu) {
+                        reversedZmpu = String(Math.round((parseFloat(prevSourceItem.zmpu) + 180) % 360));
+                    }
+                    newRows.push({
+                        point: revPoints[i].point,
+                        zmpu: reversedZmpu,
+                        distance: prevSourceItem ? prevSourceItem.distance : "",
+                        wind_dir: prevSourceItem ? prevSourceItem.wind_dir : "",
+                        wind_speed: prevSourceItem ? prevSourceItem.wind_speed : ""
+                    });
+                }
+            }
+
+            document.querySelector("#route_table tbody").innerHTML = "";
+            rowsCount = 0;
+            newRows.forEach((row, idx) => {
+                createRow(idx === 0);
+                const tr = document.querySelector(`#route_table tbody tr[data-index="${idx}"]`);
+                const inputs = tr.querySelectorAll("input");
+                inputs[0].value = row.point;
+                if (idx > 0) {
+                    inputs[1].value = row.zmpu;
+                    inputs[2].value = row.distance;
+                }
+                inputs[3].value = row.wind_dir;
+                inputs[4].value = row.wind_speed;
+            });
+            document.getElementById("results_block").textContent = "";
+        }
+
+        function saveRoute() {
+            const data = {
+                speed: document.getElementById("speed").value,
+                rows: getTableRowsData().map(r => ({ point: r.point, zmpu: r.zmpu, distance: r.distance }))
+            };
+            const blob = new Blob([JSON.stringify(data, null, 4)], { type: "application/json" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "route.json";
+            a.click();
+        }
+
+        function openRouteClick() {
+            document.getElementById("file_picker").click();
+        }
+
+        function loadRoute(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = JSON.parse(e.target.result);
+                newRoute();
+                document.getElementById("speed").value = data.speed || "";
+                document.querySelector("#route_table tbody").innerHTML = "";
+                rowsCount = 0;
+
+                const rowsData = data.rows || [];
+                rowsData.forEach((row, idx) => {
+                    createRow(idx === 0);
+                    const tr = document.querySelector(`#route_table tbody tr[data-index="${idx}"]`);
+                    const inputs = tr.querySelectorAll("input");
+                    inputs[0].value = row.point || "";
+                    if (idx > 0) {
+                        inputs[1].value = row.zmpu || "";
+                        inputs[2].value = row.distance || "";
+                    }
+                });
+            };
+            reader.readAsText(file);
+        }
+
+        function exportPDF() {
+            const rows = getTableRowsData();
+            trsData = rows.map((r, idx) => {
+                const tr = document.querySelector(`tr[data-index="${idx}"]`);
+                return {
+                    point: r.point, zmpu: r.zmpu, distance: r.distance,
+                    wind_dir: r.wind_dir, wind_speed: r.wind_speed,
+                    mk: tr ? tr.querySelector(".mk-cell").textContent : "",
+                    time: tr ? tr.querySelector(".time-cell").textContent : ""
+                }
+            });
+
+            fetch('/export_pdf', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    rows: trsData,
+                    total_distance: calculatedData.total_distance,
+                    total_time: calculatedData.total_time
+                })
+            })
+            .then(res => res.blob())
+            .then(blob => {
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = "route_result.pdf";
+                a.click();
+            });
+        }
+    </script>
+</body>
+</html>
