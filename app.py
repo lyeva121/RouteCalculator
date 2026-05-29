@@ -11,8 +11,18 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 
-# Настройка страницы Streamlit (должна быть самой первой командой)
+# Настройка страницы Streamlit
 st.set_page_config(page_title="Расчёт маршрута", layout="wide")
+
+# Уменьшаем глобальные отступы Streamlit для компактности (всё на одну страницу)
+st.markdown("""
+    <style>
+        .block-container {padding-top: 1rem; padding-bottom: 0rem; padding-left: 2rem; padding-right: 2rem;}
+        h1 {margin-top: 0rem; margin-bottom: 0.5rem; font-size: 2rem !important;}
+        .stTextInput input {padding: 5px; height: 32px;}
+        .stCheckbox {margin-top: 10px;}
+    </style>
+""", unsafe_allow_html=True)
 
 # --- ИНИЦИАЛИЗАЦИЯ ШРИФТА ДЛЯ PDF ---
 PDF_FONT = "Helvetica"
@@ -44,9 +54,9 @@ if "form_data" not in st.session_state:
 
 # --- ФУНКЦИЯ СИНХРОНИЗАЦИИ ВВОДА ---
 def sync_inputs():
-    """ Сохраняет текущие введенные пользователем данные в сессию перед перезагрузкой интерфейса """
-    st.session_state.form_data["speed"] = "" if "speed_field" not in st.session_state else st.session_state.speed_field
-    st.session_state.form_data["same_wind"] = False if "same_wind_field" not in st.session_state else st.session_state.same_wind_field
+    """ Сохраняет текущие введенные пользователем данные в сессию """
+    st.session_state.form_data["speed"] = st.session_state.get("speed_field", "")
+    st.session_state.form_data["same_wind"] = st.session_state.get("same_wind_field", False)
     for idx in range(st.session_state.rows_count):
         st.session_state.form_data[f"p_{idx}"] = st.session_state.get(f"input_p_{idx}", "")
         st.session_state.form_data[f"z_{idx}"] = st.session_state.get(f"input_z_{idx}", "")
@@ -54,39 +64,39 @@ def sync_inputs():
         st.session_state.form_data[f"wd_{idx}"] = st.session_state.get(f"input_wd_{idx}", "")
         st.session_state.form_data[f"ws_{idx}"] = st.session_state.get(f"input_ws_{idx}", "")
 
-# --- ПАНЕЛЬ РАЗРАБОТЧИКА И ЗАГОЛОВОК ---
+# --- ЗАГОЛОВОК И ПАНЕЛЬ РАЗРАБОТЧИКА ---
 col_title, col_dev = st.columns([3, 1])
 with col_title:
     st.title("Расчёт маршрута")
 with col_dev:
-    st.markdown("<p style='text-align: right; font-style: italic; color: gray; margin-top: 25px;'>Разработчик Лёвочкин Виктор</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: right; font-style: italic; color: gray; margin-top: 10px; margin-bottom: 0px;'>Разработчик Лёвочкин Виктор</p>", unsafe_allow_html=True)
 
 # --- ВЕРХНЯЯ ПАНЕЛЬ НАСТРОЕК ---
-col_speed, col_cb = st.columns([1, 2])
+col_speed, col_cb = st.columns([1, 3])
 with col_speed:
     default_speed = st.session_state.form_data.get("speed", "")
-    speed_input = st.text_input("Скорость (км/ч)", value=default_speed, key="speed_field")
+    speed_input = st.text_input("Скорость (км/ч)", value=default_speed, key="speed_field", on_change=sync_inputs)
 with col_cb:
-    st.markdown("<br>", unsafe_allow_html=True)
     default_same_wind = st.session_state.form_data.get("same_wind", False)
-    same_wind_input = st.checkbox("Ветер по всему маршруту одинаковый", value=default_same_wind, key="same_wind_field")
+    same_wind_input = st.checkbox("Ветер по всему маршруту одинаковый", value=default_same_wind, key="same_wind_field", on_change=sync_inputs)
 
-# --- ТАБЛИЦА ВВОДА ДАННЫХ ---
-st.markdown("### Таблица маршрута")
+# --- ТАБЛИЦА ВВОДА ДАННЫХ (СУЖЕННЫЕ ЯЧЕЙКИ) ---
+# Пропорции колонок сделаны максимально компактными
+col_widths = [2.5, 1.2, 1.2, 1.2, 1.2, 1.2, 2.5]
 
-cols = st.columns([3, 1.5, 1.5, 1.5, 1.5, 1.5, 2])
-cols[0].markdown("**ППМ**")
-cols[1].markdown("**ЗМПУ (°)**")
-cols[2].markdown("**Расстояние (км)**")
-cols[3].markdown("**Ветер напр.(°)**")
-cols[4].markdown("**Ветер скор.(км/ч)**")
-cols[5].markdown("**МК (°)**")
-cols[6].markdown("**Время (Участок / Общее)**")
+cols = st.columns(col_widths)
+cols[0].markdown("<b style='font-size:14px;'>ППМ</b>", unsafe_allow_html=True)
+cols[1].markdown("<b style='font-size:14px;'>ЗМПУ°</b>", unsafe_allow_html=True)
+cols[2].markdown("<b style='font-size:14px;'>Дист.км</b>", unsafe_allow_html=True)
+cols[3].markdown("<b style='font-size:14px;'>ВетрН°</b>", unsafe_allow_html=True)
+cols[4].markdown("<b style='font-size:14px;'>ВетрС.кмч</b>", unsafe_allow_html=True)
+cols[5].markdown("<b style='font-size:14px;'>МК°</b>", unsafe_allow_html=True)
+cols[6].markdown("<b style='font-size:14px;'>Время (Уч / Общ)</b>", unsafe_allow_html=True)
 
 table_rows = []
 
 for i in range(st.session_state.rows_count):
-    cols = st.columns([3, 1.5, 1.5, 1.5, 1.5, 1.5, 2])
+    cols = st.columns(col_widths)
     
     p_val = st.session_state.form_data.get(f"p_{i}", "")
     z_val = st.session_state.form_data.get(f"z_{i}", "")
@@ -94,13 +104,12 @@ for i in range(st.session_state.rows_count):
     wd_val = st.session_state.form_data.get(f"wd_{i}", "")
     ws_val = st.session_state.form_data.get(f"ws_{i}", "")
     
-    # Достаем сохраненные расчетные значения из сессии, чтобы они не исчезали
     mk_val = st.session_state.form_data.get(f"mk_{i}", "—" if i == 0 else "")
     time_val = st.session_state.form_data.get(f"time_{i}", "—" if i == 0 else "")
     
     is_first = (i == 0)
     
-    point = cols[0].text_input(f"ППМ {i}", value=p_val, label_visibility="collapsed", key=f"input_p_{i}")
+    point = cols[0].text_input(f"ППМ {i}", value=p_val, label_visibility="collapsed", key=f"input_p_{i}", on_change=sync_inputs)
     
     if is_first:
         cols[1].text_input(f"ЗМПУ {i}", value="—", disabled=True, label_visibility="collapsed", key=f"input_z_{i}")
@@ -108,15 +117,14 @@ for i in range(st.session_state.rows_count):
         zmpu = "—"
         distance = "—"
     else:
-        zmpu = cols[1].text_input(f"ЗМПУ {i}", value=z_val, label_visibility="collapsed", key=f"input_z_{i}")
-        distance = cols[2].text_input(f"Дист {i}", value=d_val, label_visibility="collapsed", key=f"input_d_{i}")
+        zmpu = cols[1].text_input(f"ЗМПУ {i}", value=z_val, label_visibility="collapsed", key=f"input_z_{i}", on_change=sync_inputs)
+        distance = cols[2].text_input(f"Дист {i}", value=d_val, label_visibility="collapsed", key=f"input_d_{i}", on_change=sync_inputs)
         
-    wind_dir = cols[3].text_input(f"ВетН {i}", value=wd_val, label_visibility="collapsed", key=f"input_wd_{i}")
-    wind_speed = cols[4].text_input(f"ВетС {i}", value=ws_val, label_visibility="collapsed", key=f"input_ws_{i}")
+    wind_dir = cols[3].text_input(f"ВетН {i}", value=wd_val, label_visibility="collapsed", key=f"input_wd_{i}", on_change=sync_inputs)
+    wind_speed = cols[4].text_input(f"ВетС {i}", value=ws_val, label_visibility="collapsed", key=f"input_ws_{i}", on_change=sync_inputs)
     
-    # Выводим расчетные значения (они стабильны, так как привязаны к тексту/сессии)
-    cols[5].markdown(f"<div style='padding: 8px 0; text-align: center;'>{mk_val}</div>", unsafe_allow_html=True)
-    cols[6].markdown(f"<div style='padding: 8px 0; text-align: center;'>{time_val}</div>", unsafe_allow_html=True)
+    cols[5].markdown(f"<div style='padding: 5px 0; text-align: center; font-size:14px; background:#f0f2f6; border-radius:4px;'>{mk_val}</div>", unsafe_allow_html=True)
+    cols[6].markdown(f"<div style='padding: 5px 0; text-align: center; font-size:14px; background:#f0f2f6; border-radius:4px;'>{time_val}</div>", unsafe_allow_html=True)
 
     table_rows.append({
         "point": point, "zmpu": zmpu, "distance": distance,
@@ -124,7 +132,7 @@ for i in range(st.session_state.rows_count):
     })
 
 # --- КНОПКИ УПРАВЛЕНИЯ ТАБЛИЦЕЙ ---
-st.markdown("---")
+st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
 btn_cols1 = st.columns(4)
 
 if btn_cols1[0].button("Добавить ППМ", use_container_width=True):
@@ -175,7 +183,6 @@ if btn_cols1[2].button("Убрать ветер", use_container_width=True):
     for idx in range(st.session_state.rows_count):
         st.session_state.form_data[f"wd_{idx}"] = ""
         st.session_state.form_data[f"ws_{idx}"] = ""
-        # Сбрасываем старые расчеты, так как ветер изменился
         st.session_state.form_data[f"mk_{idx}"] = "—" if idx == 0 else ""
         st.session_state.form_data[f"time_{idx}"] = "—" if idx == 0 else ""
     st.rerun()
@@ -185,8 +192,9 @@ if btn_cols1[3].button("Новый маршрут", use_container_width=True):
     st.session_state.form_data = {}
     st.rerun()
 
-# --- КНОПКИ ИМПОРТА/ЭКСПОРТА ---
-btn_cols2 = st.columns(3)
+# --- КНОПКИ ИМПОРТА/ЭКСПОРТА И РАСЧЕТА ---
+st.markdown("<div style='margin-top:5px;'></div>", unsafe_allow_html=True)
+btn_cols2 = st.columns([2, 2, 3])
 
 # 1. Экспорт JSON
 json_data = {"speed": speed_input, "rows": []}
@@ -209,7 +217,7 @@ btn_cols2[0].download_button(
     use_container_width=True
 )
 
-# 2. Импорт JSON (Исправленная стабильная логика)
+# 2. Импорт JSON (Исправлено под новые ключи виджетов)
 with btn_cols2[1]:
     uploaded_file = st.file_uploader("Открыть маршрут", type=["json"], label_visibility="collapsed", key="file_opener")
     if uploaded_file is not None:
@@ -227,21 +235,29 @@ with btn_cols2[1]:
                 new_form[f"ws_{idx}"] = r.get("wind_speed", "")
             
             st.session_state.form_data = new_form
+            # Сразу маппим в input-ключи, чтобы Streamlit подхватил при рендере
+            for idx in range(st.session_state.rows_count):
+                st.session_state[f"input_p_{idx}"] = new_form.get(f"p_{idx}", "")
+                st.session_state[f"input_z_{idx}"] = new_form.get(f"z_{idx}", "")
+                st.session_state[f"input_d_{idx}"] = new_form.get(f"d_{idx}", "")
+                st.session_state[f"input_wd_{idx}"] = new_form.get(f"wd_{idx}", "")
+                st.session_state[f"input_ws_{idx}"] = new_form.get(f"ws_{idx}", "")
+            st.session_state["speed_field"] = new_form["speed"]
+            
             st.toast("Маршрут успешно загружен!")
             st.rerun()
         except Exception as e:
             st.error("Ошибка чтения файла JSON")
 
-# --- КНОПКА РАСЧЁТ И ВЫЧИСЛЕНИЯ ---
-st.markdown("<br>", unsafe_allow_html=True)
-calc_pressed = st.button("РАСЧЁТ", type="primary", use_container_width=True)
+# 3. Кнопка расчета на той же строчке для экономии места
+calc_pressed = btn_cols2[2].button("РАСЧЁТ", type="primary", use_container_width=True)
 
 calculated_rows_pdf = []
 total_distance_out = 0
 total_time_out = "0:00"
 
 if calc_pressed:
-    sync_inputs()  # Сначала жестко фиксируем всё, что ввел пользователь
+    sync_inputs()
     try:
         speed = float(speed_input)
     except:
@@ -283,7 +299,6 @@ if calc_pressed:
                         if c_dir or c_speed:
                             r["wind_dir"], r["wind_speed"] = c_dir, c_speed
 
-        # Переносим распределенный ветер обратно в сессию
         for idx, r in enumerate(current_rows):
             st.session_state.form_data[f"wd_{idx}"] = r["wind_dir"]
             st.session_state.form_data[f"ws_{idx}"] = r["wind_speed"]
@@ -326,7 +341,7 @@ if calc_pressed:
                 if r["wind_speed"].strip():
                     active_wind_speed = float(r["wind_speed"])
             except:
-                st.error(f"Проверьте корректность данных ветра на ППМ '{p_name}'")
+                st.error(f"Проверьте данные ветра на ППМ '{p_name}'")
                 has_error = True; break
 
             if active_wind_dir is None or active_wind_speed is None:
@@ -341,14 +356,13 @@ if calc_pressed:
 
             time_str = f"{minutes//60}:{minutes%60:02d} / {total_min//60}:{total_min%60:02d}"
             
-            # Сохраняем расчеты в сессию, чтобы они "застыли" на экране
             st.session_state.form_data[f"mk_{idx}"] = str(mk)
             st.session_state.form_data[f"time_{idx}"] = time_str
 
         if not has_error:
             st.session_state.form_data["total_dist_out"] = round(total_dist)
             st.session_state.form_data["total_time_out"] = f"{total_min//60}:{total_min%60:02d}"
-            st.rerun()  # Перезагружаем страницу один раз, чтобы отобразить результаты намертво
+            st.rerun()
 
 # --- ВЫВОД ИТОГОВЫХ ДАННЫХ И СКАЧИВАНИЕ PDF ---
 if "total_dist_out" in st.session_state.form_data and st.session_state.form_data["total_dist_out"] > 0:
@@ -357,7 +371,6 @@ if "total_dist_out" in st.session_state.form_data and st.session_state.form_data
     
     st.info(f"**Общее расстояние:** {total_distance_out} км  |  **Общее время:** {total_time_out}")
 
-    # Сбор данных для генерации PDF на лету
     for idx in range(st.session_state.rows_count):
         p_name = st.session_state.form_data.get(f"p_{idx}", "").strip()
         if p_name:
@@ -397,7 +410,7 @@ if "total_dist_out" in st.session_state.form_data and st.session_state.form_data
         doc.build([table, Spacer(1, 10), info_tab])
 
         with open(temp_pdf, "rb") as f:
-            btn_cols2[2].download_button(
+            st.download_button(
                 label="Скачать PDF",
                 data=f,
                 file_name="route_result.pdf",
