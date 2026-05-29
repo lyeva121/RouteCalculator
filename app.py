@@ -11,143 +11,132 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import cm
 
-# --- КОНФИГУРАЦИЯ СТРАНИЦЫ И СТИЛИЗАЦИЯ (CSS) ---
-# Настройка страницы Streamlit
+# --- КОНФИГУРАЦИЯ СТРАНИЦЫ И СЖАТИЕ ИНТЕРФЕЙСА (CSS) ---
 st.set_page_config(page_title="Расчёт маршрута", layout="wide", initial_sidebar_state="collapsed")
 
-# Внедрение кастомного CSS для достижения внешнего вида как на картинке
 st.markdown("""
 <style>
-    /* Глобальные настройки темы и отступов */
+    /* Максимальное сжатие главного контейнера */
     .reportview-container .main .block-container {
-        padding-top: 1rem;
-        padding-bottom: 1rem;
-        padding-left: 2rem;
-        padding-right: 2rem;
-        background-color: #1a1d21; /* Очень темный фон, как на картинке */
+        padding-top: 0.3rem !important;
+        padding-bottom: 0.3rem !important;
+        padding-left: 1.5rem !important;
+        padding-right: 1.5rem !important;
+        background-color: #1a1d21;
         color: #ffffff;
     }
-    .stApp {
-        background-color: #1a1d21;
-    }
+    .stApp { background-color: #1a1d21; }
     
-    /* Стилизация заголовков */
+    /* Ультра-компактные заголовки */
     h1 {
         margin-top: 0rem !important;
         margin-bottom: 0rem !important;
-        font-size: 2.2rem !important;
-        color: #3ddc84 !important; /* Насыщенный зеленый для главного заголовка */
+        font-size: 1.8rem !important;
+        color: #3ddc84 !important;
+        line-height: 1.1 !important;
     }
     .route-subtitle {
-        color: #a0aab4; /* Серый цвет для подзаголовка */
-        font-size: 1rem;
-        margin-top: -5px;
-        margin-bottom: 15px;
+        color: #a0aab4;
+        font-size: 0.85rem;
+        margin-top: 0px;
+        margin-bottom: 5px;
     }
 
-    /* Стилизация полей ввода (input) */
+    /* Экстремальное уменьшение высоты всех полей ввода */
     .stTextInput input {
-        background-color: #2b3036; /* Темный фон полей */
+        background-color: #2b3036;
         color: #ffffff;
         border: 1px solid #3e444b;
         border-radius: 4px;
-        padding: 5px;
-        height: 38px;
+        padding: 2px 6px !important;
+        height: 26px !important;
+        font-size: 13px !important;
     }
     .stTextInput label {
-        color: #ffffff !important; /* Белый цвет лейблов */
-        font-size: 0.9rem;
+        color: #ffffff !important;
+        font-size: 0.85rem;
     }
     
-    /* Стилизация чекбокса */
+    /* Сжатие чекбокса */
     .stCheckbox label span p {
         color: #ffffff !important;
-        font-size: 0.9rem;
+        font-size: 0.85rem;
     }
-    .stCheckbox [data-testid="stCheckboxInput"] {
-        background-color: #2b3036;
-        border: 1px solid #3e444b;
-    }
+    .stCheckbox { margin-top: 0px !important; }
 
-    /* Стилизация таблицы (Columns) */
+    /* Настройка сетки таблицы */
     [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"] {
-        gap: 0.5rem; /* Уменьшаем отступы между колонками */
+        gap: 0.3rem !important;
     }
     .table-header {
-        font-size: 13px;
+        font-size: 11px;
         font-weight: bold;
-        color: #8fa0ac; /* Серо-голубой цвет заголовков таблицы */
-        text-transform: uppercase; /* Все заглавные */
-        margin-bottom: 5px;
+        color: #8fa0ac;
+        text-transform: uppercase;
+        margin-bottom: 2px;
     }
     
-    /* Стилизация расчетных ячеек (МК, Время) */
+    /* Ультра-компактные расчетные ячейки */
     .calc-cell {
-        padding: 8px 0;
+        padding: 3px 0 !important;
         text-align: center;
-        font-size: 14px;
-        background: #23272d; /* Чуть светлее фона, чтобы выделить */
+        font-size: 13px;
+        background: #23272d;
         border-radius: 4px;
         border: 1px solid #3e444b;
         color: #a0aab4;
-        min-height: 38px;
+        height: 26px !important;
+        line-height: 18px !important;
     }
 
-    /* Стилизация кнопок */
+    /* Маленькие кнопки для экономии высоты экрана */
     .stButton>button {
-        background-color: #2b3036; /* Темные кнопки */
+        background-color: #2b3036;
         color: #ffffff;
         border: 1px solid #3e444b;
         border-radius: 4px;
-        font-size: 14px;
-        padding: 8px 16px;
-        transition: background-color 0.3s;
+        font-size: 12px;
+        padding: 2px 10px !important;
+        height: 28px !important;
     }
     .stButton>button:hover {
         background-color: #3e444b;
-        border-color: #3e444b;
         color: #ffffff;
     }
     
-    /* Стиль для кнопки 'Новый маршрут' (Красная) */
+    /* Красная кнопка 'Новый маршрут' */
     [data-testid="stHorizontalBlock"] > div:nth-child(4) .stButton>button {
         background-color: #dc3545;
         border-color: #dc3545;
-        color: #ffffff;
-    }
-    [data-testid="stHorizontalBlock"] > div:nth-child(4) .stButton>button:hover {
-        background-color: #c82333;
     }
 
-    /* Стилизация кнопки 'РАСЧЁТ' (Зеленая) */
+    /* Зеленая кнопка 'РАСЧЁТ' */
     div.calc-btn-container .stButton>button {
-        background-color: #3ddc84; /* Ярко-зеленая */
-        color: #1a1d21; /* Темный текст */
+        background-color: #3ddc84;
+        color: #1a1d21;
         font-weight: bold;
         border: none;
-    }
-    div.calc-btn-container .stButton>button:hover {
-        background-color: #2ebf6f;
-        color: #1a1d21;
+        height: 32px !important;
+        font-size: 13px;
     }
 
-    /* Итоговая панель (Расстояние/Время) */
+    /* Итоговая строка */
     .summary-text {
-        font-size: 15px;
+        font-size: 14px;
         color: #a0aab4;
-        margin-top: 10px;
+        margin-top: 5px;
+        margin-bottom: 0px;
     }
-    .summary-text b {
-        color: #ffffff;
-    }
+    .summary-text b { color: #ffffff; }
 
-    /* Футер */
+    /* Скрытие стандартных отступов Streamlit элементов */
+    [data-testid="stVerticalBlock"] { gap: 0rem !important; }
+    
     .footer {
         text-align: center;
-        font-size: 12px;
+        font-size: 11px;
         color: #5c646d;
-        margin-top: 30px;
-        margin-bottom: 0px;
+        margin-top: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -173,16 +162,45 @@ def calculate_time(distance, zmpu, wind_dir, wind_speed, speed):
     ground_speed = speed + wind_speed * math.cos(angle)
     return distance / ground_speed if ground_speed > 0 else 0
 
-# --- ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЯ (SESSION STATE) ---
+# --- ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЯ ---
 if "rows_count" not in st.session_state:
     st.session_state.rows_count = 10
 
 if "form_data" not in st.session_state:
     st.session_state.form_data = {}
 
-# --- ФУНКЦИЯ СИНХРОНИЗАЦИИ ВВОДА ---
+# --- ИСПРАВЛЕННАЯ ФУНКЦИЯ ИМПОРТА (ОБРАБОТКА ДО РЕНДЕРА ВИДЖЕТОВ) ---
+if "file_opener" in st.session_state and st.session_state.file_opener is not None:
+    try:
+        file_content = json.load(st.session_state.file_opener)
+        new_form = {"speed": file_content.get("speed", ""), "same_wind": st.session_state.form_data.get("same_wind", False)}
+        r_data = file_content.get("rows", [])
+        st.session_state.rows_count = max(10, len(r_data))
+        
+        for idx, r in enumerate(r_data):
+            new_form[f"p_{idx}"] = r.get("point", "")
+            new_form[f"z_{idx}"] = "" if idx == 0 else r.get("zmpu", "")
+            new_form[f"d_{idx}"] = "" if idx == 0 else r.get("distance", "")
+            new_form[f"wd_{idx}"] = r.get("wind_dir", "")
+            new_form[f"ws_{idx}"] = r.get("wind_speed", "")
+        
+        st.session_state.form_data = new_form
+        # Принудительно связываем с ключами полей
+        for idx in range(st.session_state.rows_count):
+            st.session_state[f"input_p_{idx}"] = new_form.get(f"p_{idx}", "")
+            st.session_state[f"input_z_{idx}"] = new_form.get(f"z_{idx}", "")
+            st.session_state[f"input_d_{idx}"] = new_form.get(f"d_{idx}", "")
+            st.session_state[f"input_wd_{idx}"] = new_form.get(f"wd_{idx}", "")
+            st.session_state[f"input_ws_{idx}"] = new_form.get(f"ws_{idx}", "")
+        st.session_state["speed_field"] = new_form["speed"]
+        
+        # Сбрасываем загрузчик, чтобы не зацикливался
+        st.session_state.file_opener = None
+        st.toast("Маршрут успешно загружен!")
+    except Exception as e:
+        st.error("Ошибка чтения JSON файла")
+
 def sync_inputs():
-    """ Сохраняет текущие введенные пользователем данные в сессию """
     st.session_state.form_data["speed"] = st.session_state.get("speed_field", "")
     st.session_state.form_data["same_wind"] = st.session_state.get("same_wind_field", False)
     for idx in range(st.session_state.rows_count):
@@ -192,8 +210,8 @@ def sync_inputs():
         st.session_state.form_data[f"wd_{idx}"] = st.session_state.get(f"input_wd_{idx}", "")
         st.session_state.form_data[f"ws_{idx}"] = st.session_state.get(f"input_ws_{idx}", "")
 
-# --- ЗАГОЛОВОК И НАСТРОЙКИ (Как на картинке) ---
-header_col1, header_col2 = st.columns([2, 2])
+# --- ВЕРХНЯЯ ПАНЕЛЬ И ЗАГОЛОВОК ---
+header_col1, header_col2 = st.columns([3, 2])
 
 with header_col1:
     st.title("Расчёт маршрута")
@@ -203,23 +221,22 @@ with header_col2:
     settings_cols = st.columns([1, 2])
     with settings_cols[0]:
         default_speed = st.session_state.form_data.get("speed", "")
-        speed_input = st.text_input("Скорость (км/ч):", value=default_speed, key="speed_field", label_visibility="visible", on_change=sync_inputs)
+        speed_input = st.text_input("Скорость (км/ч):", value=default_speed, key="speed_field", on_change=sync_inputs)
     with settings_cols[1]:
-        # Отступ, чтобы выровнять чекбокс по центру поля ввода
-        st.markdown("<div style='margin-top: 35px;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top: 30px;'></div>", unsafe_allow_html=True)
         default_same_wind = st.session_state.form_data.get("same_wind", False)
         same_wind_input = st.checkbox("Ветер по всему маршруту одинаковый", value=default_same_wind, key="same_wind_field", on_change=sync_inputs)
 
-# --- ТАБЛИЦА ВВОДА ДАННЫХ (Компактные ячейки, темный стиль) ---
-# Пропорции колонок максимально близки к картинке
-col_widths = [2.5, 1.3, 1.3, 1.6, 1.6, 1.3, 2.5]
+# --- ТАБЛИЦА ВВОДА (ППМ широкий, остальные столбцы узкие) ---
+# [ППМ, ЗМПУ, Расст, ВетМ, ВетС, МК, Время] -> ППМ выделено больше пространства (3.4)
+col_widths = [3.4, 1.0, 1.0, 1.3, 1.3, 1.0, 2.0]
 
 cols = st.columns(col_widths)
 cols[0].markdown("<div class='table-header'>ППМ</div>", unsafe_allow_html=True)
 cols[1].markdown("<div class='table-header' style='text-align:center;'>ЗМПУ (°)</div>", unsafe_allow_html=True)
 cols[2].markdown("<div class='table-header' style='text-align:center;'>Расст. (км)</div>", unsafe_allow_html=True)
-cols[3].markdown("<div class='table-header' style='text-align:center;'>Ветер Метео (°)</div>", unsafe_allow_html=True)
-cols[4].markdown("<div class='table-header' style='text-align:center;'>Ветер Скор. км/ч</div>", unsafe_allow_html=True)
+cols[3].markdown("<div class='table-header' style='text-align:center;'>Ветер Меt (°)</div>", unsafe_allow_html=True)
+cols[4].markdown("<div class='table-header' style='text-align:center;'>Ветер Ск км/ч</div>", unsafe_allow_html=True)
 cols[5].markdown("<div class='table-header' style='text-align:center; color:#3ddc84;'>МК</div>", unsafe_allow_html=True)
 cols[6].markdown("<div class='table-header' style='text-align:center; color:#3ddc84;'>Время Ч:ММ / Ч:ММ</div>", unsafe_allow_html=True)
 
@@ -234,9 +251,8 @@ for i in range(st.session_state.rows_count):
     wd_val = st.session_state.form_data.get(f"wd_{i}", "")
     ws_val = st.session_state.form_data.get(f"ws_{i}", "")
     
-    # Расчетные значения теперь серые по умолчанию
-    mk_val = st.session_state.form_data.get(f"mk_{i}", "—" if i == 0 else "—")
-    time_val = st.session_state.form_data.get(f"time_{i}", "—" if i == 0 else "— / —")
+    mk_val = st.session_state.form_data.get(f"mk_{i}", "—")
+    time_val = st.session_state.form_data.get(f"time_{i}", "— / —")
     
     is_first = (i == 0)
     
@@ -254,7 +270,6 @@ for i in range(st.session_state.rows_count):
     wind_dir = cols[3].text_input(f"ВетН {i}", value=wd_val, label_visibility="collapsed", key=f"input_wd_{i}", on_change=sync_inputs)
     wind_speed = cols[4].text_input(f"ВетС {i}", value=ws_val, label_visibility="collapsed", key=f"input_ws_{i}", on_change=sync_inputs)
     
-    # Визуализация расчетных ячеек
     cols[5].markdown(f"<div class='calc-cell'>{mk_val}</div>", unsafe_allow_html=True)
     cols[6].markdown(f"<div class='calc-cell'>{time_val}</div>", unsafe_allow_html=True)
 
@@ -263,8 +278,8 @@ for i in range(st.session_state.rows_count):
         "wind_dir": wind_dir, "wind_speed": wind_speed
     })
 
-# --- ИТОГОВАЯ ПАНЕЛЬ И КНОПКА РАСЧЕТА (В один ряд) ---
-st.markdown("<div style='margin-top:20px;'></div>", unsafe_allow_html=True)
+# --- ИТОГОВАЯ ПАНЕЛЬ И РАСЧЕТ ---
+st.markdown("<div style='margin-top:8px;'></div>", unsafe_allow_html=True)
 calc_summary_cols = st.columns([3, 1])
 
 with calc_summary_cols[0]:
@@ -273,14 +288,12 @@ with calc_summary_cols[0]:
     st.markdown(f"<p class='summary-text'>Расстояние: <b>{total_dist_display} км</b> &nbsp;&nbsp;&nbsp; Время: <b>{total_time_display}</b></p>", unsafe_allow_html=True)
 
 with calc_summary_cols[1]:
-    # Обертка для стилизации зеленой кнопки
     st.markdown("<div class='calc-btn-container'>", unsafe_allow_html=True)
     calc_pressed = st.button("РАСЧЁТ", use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-# --- НИЖНЯЯ ПАНЕЛЬ КНОПОК ДЕЙСТВИЙ (В один ряд) ---
-st.markdown("<div style='margin-top:10px;'></div>", unsafe_allow_html=True)
-# Создаем 7 колонок для кнопок
+# --- НИЖНИЙ РЯД КНОПОК ДЕЙСТВИЙ ---
+st.markdown("<div style='margin-top:6px;'></div>", unsafe_allow_html=True)
 action_cols = st.columns(7)
 
 with action_cols[0]:
@@ -291,7 +304,6 @@ with action_cols[0]:
 
 with action_cols[1]:
     if st.button("↑↓ Реверс", use_container_width=True):
-        # Логика реверса остается прежней...
         sync_inputs()
         active_rows = []
         for idx in range(st.session_state.rows_count):
@@ -308,8 +320,8 @@ with action_cols[1]:
             for idx, item in enumerate(rev_rows):
                 new_form_data[f"p_{idx}"] = item["p"]
                 if idx == 0:
-                    new_form_data[f"z_{idx}"] = "—"
-                    new_form_data[f"d_{idx}"] = "—"
+                    new_form_data[f"z_{idx}"] = ""
+                    new_form_data[f"d_{idx}"] = ""
                     new_form_data[f"wd_{idx}"] = item["wd"]
                     new_form_data[f"ws_{idx}"] = item["ws"]
                 else:
@@ -326,8 +338,6 @@ with action_cols[1]:
             st.session_state.rows_count = max(10, len(active_rows))
             st.session_state.form_data = new_form_data
             st.rerun()
-        else:
-            st.error("Недостаточно ППМ!")
 
 with action_cols[2]:
     if st.button("≈ Убрать ветер", use_container_width=True):
@@ -343,11 +353,9 @@ with action_cols[3]:
     if st.button("↻ Новый маршрут", use_container_width=True):
         st.session_state.rows_count = 10
         st.session_state.form_data = {}
-        st.session_state["file_opener"] = 0 # Сброс загрузчика файлов
         st.rerun()
 
-# 4. Кнопки импорта/экспорта в конце ряда
-# Подготовка JSON для экспорта
+# Сбор данных для экспорта JSON
 json_data = {"speed": speed_input, "rows": []}
 for idx in range(st.session_state.rows_count):
     p = st.session_state.get(f"input_p_{idx}", "")
@@ -360,52 +368,12 @@ for idx in range(st.session_state.rows_count):
 json_data_str = json.dumps(json_data, ensure_ascii=False, indent=4)
 
 with action_cols[4]:
-    st.download_button(
-        label="💾 Сохранить",
-        data=json_data_str,
-        file_name="route.json",
-        mime="application/json",
-        use_container_width=True
-    )
+    st.download_button(label="💾 Сохранить", data=json_data_str, file_name="route.json", mime="application/json", use_container_width=True)
 
 with action_cols[5]:
-    uploaded_file = st.file_uploader("📂 Открыть", type=["json"], label_visibility="collapsed", key="file_opener")
-    # Обработка импорта (логика прежняя, только визуализация другая)
-    if uploaded_file is not None:
-        try:
-            file_content = json.load(uploaded_file)
-            # ... (логика загрузки из предыдущей версии) ...
-            # [Вставьте здесь логику загрузки из предыдущего исправленного кода app.py]
-            
-            # --- ЛОГИКА ЗАГРУЗКИ ---
-            new_form = {"speed": file_content.get("speed", ""), "same_wind": st.session_state.form_data.get("same_wind", False)}
-            r_data = file_content.get("rows", [])
-            st.session_state.rows_count = max(10, len(r_data))
-            for idx, r in enumerate(r_data):
-                new_form[f"p_{idx}"] = r.get("point", "")
-                new_form[f"z_{idx}"] = "—" if idx == 0 else r.get("zmpu", "")
-                new_form[f"d_{idx}"] = "—" if idx == 0 else r.get("distance", "")
-                new_form[f"wd_{idx}"] = r.get("wind_dir", "")
-                new_form[f"ws_{idx}"] = r.get("wind_speed", "")
-            
-            st.session_state.form_data = new_form
-            # Сразу маппим в input-ключи
-            for idx in range(st.session_state.rows_count):
-                st.session_state[f"input_p_{idx}"] = new_form.get(f"p_{idx}", "")
-                st.session_state[f"input_z_{idx}"] = new_form.get(f"z_{idx}", "")
-                st.session_state[f"input_d_{idx}"] = new_form.get(f"d_{idx}", "")
-                st.session_state[f"input_wd_{idx}"] = new_form.get(f"wd_{idx}", "")
-                st.session_state[f"input_ws_{idx}"] = new_form.get(f"ws_{idx}", "")
-            st.session_state["speed_field"] = new_form["speed"]
-            # ---------------------
-            
-            st.toast("Маршрут успешно загружен!")
-            st.rerun()
-        except Exception as e:
-            st.error("Ошибка чтения JSON")
+    st.file_uploader("📂 Открыть", type=["json"], label_visibility="collapsed", key="file_opener")
 
-# --- ЛОГИКА РАСЧЕТА (При нажатии кнопки 'РАСЧЁТ') ---
-# Сбор данных для PDF также происходит здесь
+# --- ЛОГИКА РАСЧЕТА ПРИ НАЖАТИИ «РАСЧЁТ» ---
 calculated_rows_pdf = []
 
 if calc_pressed:
@@ -413,7 +381,6 @@ if calc_pressed:
     try:
         speed = float(speed_input)
     except:
-        st.error("Проверьте скорость")
         speed = None
 
     if speed:
@@ -427,8 +394,6 @@ if calc_pressed:
                 "wind_speed": st.session_state.form_data.get(f"ws_{idx}", "")
             })
 
-        # ... (логика авто-распределения ветра остается прежней) ...
-        # Логика авто-распределения ветра
         if same_wind_input:
             target_dir, target_speed = "", ""
             for r in current_rows:
@@ -451,9 +416,7 @@ if calc_pressed:
                     else:
                         if c_dir or c_speed:
                             r["wind_dir"], r["wind_speed"] = c_dir, c_speed
-        # ------------------------------------------------------
 
-        # Записываем распределенный ветер обратно
         for idx, r in enumerate(current_rows):
             st.session_state.form_data[f"wd_{idx}"] = r["wind_dir"]
             st.session_state.form_data[f"ws_{idx}"] = r["wind_speed"]
@@ -479,7 +442,6 @@ if calc_pressed:
             except: continue
 
             if active_wind_dir is None or active_wind_speed is None:
-                st.error(f"Не заданы параметры ветра для участка до '{p_name}'")
                 has_error = True; break
 
             mk = calculate_mk(zmpu, active_wind_dir, active_wind_speed, speed)
@@ -489,7 +451,6 @@ if calc_pressed:
             total_dist += dist
             
             time_str = f"{minutes//60}:{minutes%60:02d} / {total_min//60}:{total_min%60:02d}"
-            
             st.session_state.form_data[f"mk_{idx}"] = str(mk)
             st.session_state.form_data[f"time_{idx}"] = time_str
 
@@ -498,8 +459,7 @@ if calc_pressed:
             st.session_state.form_data["total_time_out"] = f"{total_min//60}:{total_min%60:02d}"
             st.rerun()
 
-# --- КНОПКА PDF (Последняя в ряду) ---
-# Сбор данных для генерации PDF
+# --- ГЕНЕРАЦИЯ И СКАЧИВАНИЕ PDF ---
 for idx in range(st.session_state.rows_count):
     p_name = st.session_state.form_data.get(f"p_{idx}", "").strip()
     if p_name:
@@ -535,13 +495,6 @@ if len(calculated_rows_pdf) > 0:
 
     with open(temp_pdf, "rb") as f:
         with action_cols[6]:
-            st.download_button(
-                label="📄 PDF",
-                data=f,
-                file_name="route_result.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
+            st.download_button(label="📄 PDF", data=f, file_name="route_result.pdf", mime="application/pdf", use_container_width=True)
 
-# --- ФУТЕР ---
 st.markdown("<p class='footer'>Разработчик Лёвочкин Виктор</p>", unsafe_allow_html=True)
