@@ -169,37 +169,6 @@ if "rows_count" not in st.session_state:
 if "form_data" not in st.session_state:
     st.session_state.form_data = {}
 
-# --- ИСПРАВЛЕННАЯ ФУНКЦИЯ ИМПОРТА (ОБРАБОТКА ДО РЕНДЕРА ВИДЖЕТОВ) ---
-if "file_opener" in st.session_state and st.session_state.file_opener is not None:
-    try:
-        file_content = json.load(st.session_state.file_opener)
-        new_form = {"speed": file_content.get("speed", ""), "same_wind": st.session_state.form_data.get("same_wind", False)}
-        r_data = file_content.get("rows", [])
-        st.session_state.rows_count = max(10, len(r_data))
-        
-        for idx, r in enumerate(r_data):
-            new_form[f"p_{idx}"] = r.get("point", "")
-            new_form[f"z_{idx}"] = "" if idx == 0 else r.get("zmpu", "")
-            new_form[f"d_{idx}"] = "" if idx == 0 else r.get("distance", "")
-            new_form[f"wd_{idx}"] = r.get("wind_dir", "")
-            new_form[f"ws_{idx}"] = r.get("wind_speed", "")
-        
-        st.session_state.form_data = new_form
-        # Принудительно связываем с ключами полей
-        for idx in range(st.session_state.rows_count):
-            st.session_state[f"input_p_{idx}"] = new_form.get(f"p_{idx}", "")
-            st.session_state[f"input_z_{idx}"] = new_form.get(f"z_{idx}", "")
-            st.session_state[f"input_d_{idx}"] = new_form.get(f"d_{idx}", "")
-            st.session_state[f"input_wd_{idx}"] = new_form.get(f"wd_{idx}", "")
-            st.session_state[f"input_ws_{idx}"] = new_form.get(f"ws_{idx}", "")
-        st.session_state["speed_field"] = new_form["speed"]
-        
-        # Сбрасываем загрузчик, чтобы не зацикливался
-        st.session_state.file_opener = None
-        st.toast("Маршрут успешно загружен!")
-    except Exception as e:
-        st.error("Ошибка чтения JSON файла")
-
 def sync_inputs():
     st.session_state.form_data["speed"] = st.session_state.get("speed_field", "")
     st.session_state.form_data["same_wind"] = st.session_state.get("same_wind_field", False)
@@ -227,8 +196,7 @@ with header_col2:
         default_same_wind = st.session_state.form_data.get("same_wind", False)
         same_wind_input = st.checkbox("Ветер по всему маршруту одинаковый", value=default_same_wind, key="same_wind_field", on_change=sync_inputs)
 
-# --- ТАБЛИЦА ВВОДА (ППМ широкий, остальные столбцы узкие) ---
-# [ППМ, ЗМПУ, Расст, ВетМ, ВетС, МК, Время] -> ППМ выделено больше пространства (3.4)
+# --- ТАБЛИЦА ВВОДА ---
 col_widths = [3.4, 1.0, 1.0, 1.3, 1.3, 1.0, 2.0]
 
 cols = st.columns(col_widths)
@@ -370,10 +338,39 @@ json_data_str = json.dumps(json_data, ensure_ascii=False, indent=4)
 with action_cols[4]:
     st.download_button(label="💾 Сохранить", data=json_data_str, file_name="route.json", mime="application/json", use_container_width=True)
 
+# НАДЕЖНЫЙ ОБРАБОТЧИК ОТКРЫТИЯ ФАЙЛА
 with action_cols[5]:
-    st.file_uploader("📂 Открыть", type=["json"], label_visibility="collapsed", key="file_opener")
+    uploaded_file = st.file_uploader("📂 Открыть", type=["json"], label_visibility="collapsed")
+    if uploaded_file is not None:
+        try:
+            file_content = json.load(uploaded_file)
+            new_form = {"speed": file_content.get("speed", ""), "same_wind": st.session_state.form_data.get("same_wind", False)}
+            r_data = file_content.get("rows", [])
+            st.session_state.rows_count = max(10, len(r_data))
+            
+            for idx, r in enumerate(r_data):
+                new_form[f"p_{idx}"] = r.get("point", "")
+                new_form[f"z_{idx}"] = "" if idx == 0 else r.get("zmpu", "")
+                new_form[f"d_{idx}"] = "" if idx == 0 else r.get("distance", "")
+                new_form[f"wd_{idx}"] = r.get("wind_dir", "")
+                new_form[f"ws_{idx}"] = r.get("wind_speed", "")
+            
+            st.session_state.form_data = new_form
+            # Принудительная инъекция во внутреннее состояние виджетов перед рендером
+            for idx in range(st.session_state.rows_count):
+                st.session_state[f"input_p_{idx}"] = new_form.get(f"p_{idx}", "")
+                st.session_state[f"input_z_{idx}"] = new_form.get(f"z_{idx}", "")
+                st.session_state[f"input_d_{idx}"] = new_form.get(f"d_{idx}", "")
+                st.session_state[f"input_wd_{idx}"] = new_form.get(f"wd_{idx}", "")
+                st.session_state[f"input_ws_{idx}"] = new_form.get(f"ws_{idx}", "")
+            st.session_state["speed_field"] = new_form["speed"]
+            
+            st.toast("Маршрут успешно загружен!")
+            st.rerun()
+        except Exception as e:
+            st.error("Ошибка чтения JSON")
 
-# --- ЛОГИКА РАСЧЕТА ПРИ НАЖАТИИ «РАСЧЁТ» ---
+# --- ЛОГИКА РАСЧЕТА ---
 calculated_rows_pdf = []
 
 if calc_pressed:
