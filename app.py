@@ -132,8 +132,15 @@ st.markdown("""
     /* Скрытие стандартных отступов Streamlit элементов */
     [data-testid="stVerticalBlock"] { gap: 0rem !important; }
     
-    /* Стилизация скрытого контейнера uploader, чтобы он не занимал место */
-    .uploadedFile { display: none !important; }
+    /* Стилизация uploader контейнера (делаем незаметным вверху страницы) */
+    .upload-box {
+        position: absolute;
+        top: -100px;
+        left: 0;
+        opacity: 0;
+        height: 0px;
+        overflow: hidden;
+    }
     
     .footer {
         text-align: center;
@@ -165,12 +172,52 @@ def calculate_time(distance, zmpu, wind_dir, wind_speed, speed):
     ground_speed = speed + wind_speed * math.cos(angle)
     return distance / ground_speed if ground_speed > 0 else 0
 
-# --- ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЯ ---
+# --- ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЯ СЕССИИ ---
 if "rows_count" not in st.session_state:
     st.session_state.rows_count = 10
 
 if "form_data" not in st.session_state:
     st.session_state.form_data = {}
+
+# --- ПЕРЕХВАТ И ЗАГРУЗКА ФАЙЛА НА САМОМ ВЕРХУ ВЫПОЛНЕНИЯ ---
+uploaded_file = st.file_uploader("Загрузка файла", type=["json"], label_visibility="collapsed", key="hidden_uploader")
+if uploaded_file is not None:
+    try:
+        file_bytes = uploaded_file.read()
+        file_content = json.loads(file_bytes.decode("utf-8"))
+        
+        # Создаем новый временный словарь данных формы
+        new_form = {
+            "speed": file_content.get("speed", ""),
+            "same_wind": file_content.get("same_wind", False)
+        }
+        r_data = file_content.get("rows", [])
+        st.session_state.rows_count = max(10, len(r_data))
+        
+        # Заполняем данными из файла
+        for idx, r in enumerate(r_data):
+            new_form[f"p_{idx}"] = r.get("point", "")
+            new_form[f"z_{idx}"] = "" if idx == 0 else r.get("zmpu", "")
+            new_form[f"d_{idx}"] = "" if idx == 0 else r.get("distance", "")
+            new_form[f"wd_{idx}"] = r.get("wind_dir", "")
+            new_form[f"ws_{idx}"] = r.get("wind_speed", "")
+        
+        st.session_state.form_data = new_form
+        
+        # Принудительно жестко прописываем значения в стейт виджетов
+        st.session_state["speed_field"] = new_form["speed"]
+        st.session_state["same_wind_field"] = new_form["same_wind"]
+        for idx in range(st.session_state.rows_count):
+            st.session_state[f"input_p_{idx}"] = new_form.get(f"p_{idx}", "")
+            st.session_state[f"input_z_{idx}"] = new_form.get(f"z_{idx}", "")
+            st.session_state[f"input_d_{idx}"] = new_form.get(f"d_{idx}", "")
+            st.session_state[f"input_wd_{idx}"] = new_form.get(f"wd_{idx}", "")
+            st.session_state[f"input_ws_{idx}"] = new_form.get(f"ws_{idx}", "")
+            
+        st.toast("Маршрут успешно загружен!")
+        st.rerun()
+    except Exception as e:
+        st.error("Ошибка структуры JSON")
 
 def sync_inputs():
     st.session_state.form_data["speed"] = st.session_state.get("speed_field", "")
@@ -199,7 +246,7 @@ with header_col2:
         default_same_wind = st.session_state.form_data.get("same_wind", False)
         same_wind_input = st.checkbox("Ветер по всему маршруту одинаковый", value=default_same_wind, key="same_wind_field", on_change=sync_inputs)
 
-# --- ТАБЛИЦА ВВОДА (Широкий ППМ, узкие остальные) ---
+# --- ТАБЛИЦА ВВОДА (Широкий ППМ, узкие остальные ячейки) ---
 col_widths = [3.4, 1.0, 1.0, 1.3, 1.3, 1.0, 2.0]
 
 cols = st.columns(col_widths)
@@ -327,7 +374,7 @@ with action_cols[3]:
         st.rerun()
 
 # Сбор данных текущей сессии для экспорта JSON
-json_data = {"speed": speed_input, "rows": []}
+json_data = {"speed": speed_input, "same_wind": same_wind_input, "rows": []}
 for idx in range(st.session_state.rows_count):
     p = st.session_state.get(f"input_p_{idx}", "")
     z = st.session_state.get(f"input_z_{idx}", "")
@@ -341,49 +388,25 @@ json_data_str = json.dumps(json_data, ensure_ascii=False, indent=4)
 with action_cols[4]:
     st.download_button(label="💾 Сохранить", data=json_data_str, file_name="route.json", mime="application/json", use_container_width=True)
 
-# ИСПРАВЛЕННЫЙ И СТАБИЛИЗИРОВАННЫЙ ИМПОРТ ФАЙЛА
 with action_cols[5]:
-    uploaded_file = st.file_uploader("📂 Открыть", type=["json"], label_visibility="collapsed", key="json_uploader")
-    if uploaded_file is not None:
-        try:
-            # Читаем данные из файла напрямую
-            file_bytes = uploaded_file.read()
-            file_content = json.loads(file_bytes.decode("utf-8"))
-            
-            # Конструируем чистый стейт
-            new_form = {
-                "speed": file_content.get("speed", ""),
-                "same_wind": file_content.get("same_wind", False)
-            }
-            r_data = file_content.get("rows", [])
-            st.session_state.rows_count = max(10, len(r_data))
-            
-            for idx, r in enumerate(r_data):
-                new_form[f"p_{idx}"] = r.get("point", "")
-                new_form[f"z_{idx}"] = "" if idx == 0 else r.get("zmpu", "")
-                new_form[f"d_{idx}"] = "" if idx == 0 else r.get("distance", "")
-                new_form[f"wd_{idx}"] = r.get("wind_dir", "")
-                new_form[f"ws_{idx}"] = r.get("wind_speed", "")
-            
-            # Передаем данные в форму
-            st.session_state.form_data = new_form
-            
-            # Жёстко связываем со всеми виджетами ввода текста
-            st.session_state["speed_field"] = new_form["speed"]
-            st.session_state["same_wind_field"] = new_form["same_wind"]
-            for idx in range(st.session_state.rows_count):
-                st.session_state[f"input_p_{idx}"] = new_form.get(f"p_{idx}", "")
-                st.session_state[f"input_z_{idx}"] = new_form.get(f"z_{idx}", "")
-                st.session_state[f"input_d_{idx}"] = new_form.get(f"d_{idx}", "")
-                st.session_state[f"input_wd_{idx}"] = new_form.get(f"wd_{idx}", "")
-                st.session_state[f"input_ws_{idx}"] = new_form.get(f"ws_{idx}", "")
-                
-            st.toast("Маршрут успешно загружен!")
-            st.rerun()
-        except Exception as e:
-            st.error("Ошибка структуры JSON")
+    # Стилизованная кнопка, которая триггерит невидимый uploader вверху страницы
+    st.markdown("""
+    <label for="hidden_uploader" style="
+        display: block;
+        text-align: center;
+        background-color: #2b3036;
+        color: white;
+        border: 1px solid #3e444b;
+        border-radius: 4px;
+        font-size: 12px;
+        cursor: pointer;
+        height: 28px;
+        line-height: 26px;
+        width: 100%;
+    ">📂 Открыть</label>
+    """, unsafe_allow_html=True)
 
-# --- ЛОГИКА РАСЧЕТА ---
+# --- ЛОГИКА РАСЧЕТА ПРИ НАЖАТИИ «РАСЧЁТ» ---
 calculated_rows_pdf = []
 
 if calc_pressed:
