@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4CAF50">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Маршрут">
+<title>Расчёт маршрута</title>
+<style>
+:root{--bg:#f0f0f0;--fg:#111;--cell:#fff;--head:#d9d9d9;--line:#777;--dis:#e4e4e4;--res:#f7f7f7}
+@media (prefers-color-scheme:dark){:root{--bg:#222;--fg:#eee;--cell:#2e2e2e;--head:#444;--line:#999;--dis:#3a3a3a;--res:#2a2a2a}}
+*{box-sizing:border-box}
+body{margin:0;padding:10px;background:var(--bg);color:var(--fg);font:15px Arial,sans-serif;text-align:center}
+.top{display:flex;justify-content:center;align-items:flex-end;gap:30px;margin:6px 0 10px;flex-wrap:wrap}
+.top label{display:block;margin-bottom:3px}
+.hist small{display:block;font-style:italic;color:gray;font-size:12px;margin-bottom:3px}
+.wrap{overflow-x:auto;max-width:100%;margin:0 auto;display:inline-block;vertical-align:top;max-width:100%}
+table{border-collapse:collapse;min-width:820px}
+th,td{border:1px solid var(--line);padding:0}
+th{background:var(--head);font-weight:normal;padding:4px 6px;height:24px}
+td.res{background:var(--res);padding:2px 6px;white-space:nowrap}
+input{width:100%;border:0;padding:5px 6px;font:16px Arial,sans-serif;background:var(--cell);color:var(--fg);text-align:center;outline-offset:-2px}
+input[data-k=point],input[data-k=note]{text-align:left}
+input:disabled{background:var(--dis)}
+button{font:14px Arial,sans-serif;padding:8px 12px;border:1px solid #888;border-radius:4px;background:#e1e1e1;color:#111;cursor:pointer;min-width:120px}
+button:active{background:#cfcfcf}
+.hist button{min-width:44px;font-weight:bold;font-size:16px;padding:6px 10px}
+.btns{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin:10px 0}
+#calc{background:#4CAF50;color:#fff;font:bold 18px Arial,sans-serif;padding:14px 40px;border-color:#3d8b40;margin:10px 0}
+#total{white-space:pre-line;font-weight:bold;font-size:16px;min-height:44px;text-align:left;display:inline-block}
+#warn{display:none;position:fixed;right:8px;top:120px;width:110px;background:#FFEB3B;color:#B71C1C;border:1px solid #333;padding:6px;font:bold 12px Arial;z-index:5}
+#warn button{background:#4CAF50;color:#fff;min-width:0;padding:3px 14px;margin-top:4px;font-weight:bold}
+dialog{max-width:720px;width:92vw;max-height:88vh;text-align:left;background:var(--cell);color:var(--fg);border:1px solid #666;border-radius:6px}
+dialog p{margin:0 0 10px;line-height:1.35}
+@media (max-width:640px){button{min-width:0;flex:1 1 44%}.top{gap:14px}#warn{top:auto;bottom:8px;width:150px}}
+</style>
+</head>
+<body>
+<div class="top">
+  <div><label for="speed">Скорость (км/ч)</label><input id="speed" style="width:120px;border:1px solid var(--line)" inputmode="decimal"></div>
+  <div class="hist"><small>История</small><button id="undo" title="Назад">←</button> <button id="redo" title="Вперёд">→</button></div>
+</div>
+<div class="wrap"><table>
+<thead>
+<tr><th rowspan="2" style="width:22%">ППМ</th><th rowspan="2">ЗМПУ</th><th rowspan="2">Расстояние</th><th colspan="2">Ветер метео</th><th rowspan="2">МК</th><th rowspan="2">Время</th><th rowspan="2" style="width:22%">Примечание</th></tr>
+<tr><th>Напр. (°)</th><th>Скор. (км/ч)</th></tr>
+</thead>
+<tbody id="tb"></tbody>
+</table></div>
+<div id="warn"><div style="font-size:16px">⚠</div>Проверь<br>соответствие<br>данных<br>в примечании<br><button id="warnOk">ОК</button></div>
+<div class="btns">
+  <button id="add">Добавить ППМ</button><button id="rev">Реверс</button><button id="nowind">Убрать ветер</button><button id="new">Новый маршрут</button>
+</div>
+<div class="btns">
+  <button id="save">Сохранить</button><button id="open">Открыть</button><button id="pdf">PDF</button><button id="help">Помощь</button>
+</div>
+<input type="file" id="file" accept=".json,application/json" hidden>
+<div><button id="calc">РАСЧЁТ</button></div>
+<div id="total"></div>
+<dialog id="dlg"><div id="helpText"></div><div style="text-align:center"><button id="dlgClose">Закрыть</button></div></dialog>
+
+<script src="pdf.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const KEYS = ["point","zmpu","distance","wd","ws","mk","time","note"];
+const blank = () => ({point:"",zmpu:"",distance:"",wd:"",ws:"",note:"",mk:"",time:"",aw:null});
+const newState = (n = 10) => ({speed:"", rows:Array.from({length:n}, blank), total:"", tv:[0,"0:00"]});
+let S = newState(), H = [], hp = -1, focusRow = -1;
+const tr = v => String(v).trim();
+const toNum = v => parseFloat(tr(v).replace(",", "."));
+const pyRound = x => { const r = Math.round(x); return Math.abs(x % 1) === 0.5 && r % 2 ? r - 1 : r; };
+const fmt = m => Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0");
+const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+/* ---------- история (20 изменений) ---------- */
+function push() {
+  const snap = JSON.stringify(S);
+  if (H[hp] === snap) return;
+  H.length = hp + 1; H.push(snap);
+  if (H.length > 21) H.shift();
+  hp = H.length - 1;
+}
+function undo() { push(); if (hp > 0) { S = JSON.parse(H[--hp]); render(); } }
+function redo() { push(); if (hp < H.length - 1) { S = JSON.parse(H[++hp]); render(); } }
+
+/* ---------- таблица ---------- */
+function render() {
+  $("#speed").value = S.speed;
+  const tb = $("#tb"); tb.innerHTML = "";
+  S.rows.forEach((r, i) => {
+    const row = document.createElement("tr");
+    for (const k of KEYS) {
+      const td = document.createElement("td");
+      if (k === "mk" || k === "time") { td.className = "res"; td.textContent = i === 0 ? "—" : r[k]; }
+      else {
+        const inp = document.createElement("input");
+        inp.value = r[k]; inp.dataset.i = i; inp.dataset.k = k;
+        if (k === "zmpu") inp.inputMode = "numeric";
+        if (k === "distance" || k === "wd" || k === "ws") inp.inputMode = "decimal";
+        if (i === 0 && (k === "zmpu" || k === "distance")) inp.disabled = true;
+        td.append(inp);
+      }
+      row.append(td);
+    }
+    tb.append(row);
+  });
+  $("#total").textContent = S.total;
+}
+$("#tb").addEventListener("input", e => {
+  const { i, k } = e.target.dataset; if (i === undefined) return;
+  S.rows[i][k] = e.target.value;
+  if (k === "wd" || k === "ws") S.rows[i].aw = null;
+});
+$("#tb").addEventListener("change", push);
+$("#tb").addEventListener("focusin", e => { if (e.target.dataset.i !== undefined) focusRow = +e.target.dataset.i; });
+$("#tb").addEventListener("keydown", e => {
+  const d = { ArrowDown: 1, Enter: 1, ArrowUp: -1 }[e.key]; if (!d || !e.target.dataset.k) return;
+  const list = [...document.querySelectorAll(`input[data-k="${e.target.dataset.k}"]:not(:disabled)`)];
+  const nx = list[list.indexOf(e.target) + d]; if (nx) { e.preventDefault(); nx.focus(); nx.select(); }
+});
+$("#speed").addEventListener("input", e => { S.speed = e.target.value; });
+$("#speed").addEventListener("change", push);
+
+/* ---------- проверка данных и расчёт ---------- */
+function check() {
+  const e = [], R = S.rows;
+  const used = (r, i) => tr(r.point) || (i && (tr(r.zmpu) || tr(r.distance)));
+  const any = R.some((r, i) => used(r, i));
+  const NUM = /^\d+([.,]\d+)?$/, INT = /^\d+$/;
+  R.forEach((r, i) => {
+    const p = tr(r.point), lab = "строка " + (i + 1) + (p ? ` (ППМ '${p}')` : "");
+    if (i === 0) { if (any && !p) e.push("строка 1: не заполнена ячейка «ППМ»"); }
+    else if (used(r, i)) {
+      const z = tr(r.zmpu), d = tr(r.distance);
+      if (!p) e.push(lab + ": не заполнена ячейка «ППМ»");
+      if (!z) e.push(lab + ": не заполнена ячейка «ЗМПУ»");
+      else if (!INT.test(z)) e.push(lab + ": в ячейке «ЗМПУ» должно быть целое число (только цифры)");
+      else if (+z > 359) e.push(lab + ": ЗМПУ должен быть в диапазоне 0–359");
+      if (!d) e.push(lab + ": не заполнена ячейка «Расстояние»");
+      else if (!NUM.test(d)) e.push(lab + ": в ячейке «Расстояние» должно быть число (только цифры, десятичная дробь)");
+    }
+    if (p || i === 0) {
+      const wd = tr(r.wd), ws = tr(r.ws);
+      if (wd && !NUM.test(wd)) e.push(lab + ": направление ветра должно быть числом (только цифры)");
+      else if (wd && toNum(wd) > 359) e.push(lab + ": направление ветра должно быть в диапазоне 0–359");
+      if (ws && !NUM.test(ws)) e.push(lab + ": скорость ветра должна быть числом (только цифры)");
+    }
+  });
+  return e;
+}
+const preview = a => a.slice(0, 12).join("\n") + (a.length > 12 ? `\n… и ещё ${a.length - 12}` : "");
+
+function calc() {
+  push();
+  try { calc2(); } finally { push(); render(); }
+}
+function calc2() {
+  S.rows.forEach((r, i) => { if (i) r.mk = r.time = ""; });
+  S.total = ""; S.tv = [0, "0:00"];
+  const v = toNum(S.speed);
+  if (!(v > 0)) { alert("Не задана или некорректна скорость. Проверьте данные перед расчётом."); return; }
+  const errs = check();
+  if (errs.length) { alert("Расчёт не выполнен. Проверьте данные:\n\n" + preview(errs)); return; }
+  const miss = [];
+  S.rows.forEach((r, i) => {
+    const p = tr(r.point);
+    if (!p) { if (["zmpu","distance","wd","ws","note"].some(k => tr(r[k]))) miss.push(`строка ${i + 1}: ППМ`); }
+    else if (!!tr(r.wd) !== !!tr(r.ws)) miss.push(`ППМ '${p}': направление/скорость ветра`);
+  });
+  if (miss.length && !confirm("Обнаружены пропущенные или неполные данные:\n\n" + preview(miss) + "\n\nПродолжить расчёт?")) return;
+
+  // ветер, проставленный автоматически ранее и не изменённый, обновляется
+  S.rows.forEach(r => {
+    if (r.aw && tr(r.wd) === r.aw[0] && tr(r.ws) === r.aw[1]) r.wd = r.ws = "";
+    r.aw = null;
+  });
+  let cd = "", cs = "";
+  S.rows.forEach(r => {
+    if (!tr(r.point)) return;
+    const d = tr(r.wd), s = tr(r.ws);
+    if (d || s) { cd = d; cs = s; }
+    else if (cd || cs) { r.wd = cd; r.ws = cs; r.aw = [cd, cs]; }
+  });
+
+  let tm = 0, td = 0, wd = null, ws = null; const res = [];
+  for (let i = 0; i < S.rows.length; i++) {
+    const r = S.rows[i], p = tr(r.point);
+    if (i > 0 && !p) continue;
+    if (i > 0) {
+      const z = +r.zmpu, dist = toNum(r.distance);
+      if (wd === null || ws === null) { alert(`Не заданы параметры ветра для участка до ППМ '${p}'`); return; }
+      const a = (wd + 180 - z) * Math.PI / 180;
+      const mk = (((pyRound(z - (ws / v) * Math.sin(a) * 57.3)) % 360) + 360) % 360;
+      const gs = v + ws * Math.cos(a);
+      if (!(gs > 0)) { alert(`На участке до ППМ '${p}' встречная составляющая ветра не меньше скорости полёта: расчёт времени невозможен`); return; }
+      const m = pyRound(dist / gs * 60); tm += m; td += dist;
+      res.push([r, String(mk), fmt(m) + " / " + fmt(tm)]);
+    }
+    if (tr(r.wd)) wd = toNum(r.wd);
+    if (tr(r.ws)) ws = toNum(r.ws);
+  }
+  res.forEach(([r, a, b]) => { r.mk = a; r.time = b; });
+  S.tv = [pyRound(td), fmt(tm)];
+  S.total = `Общее расстояние: ${S.tv[0]} км\nОбщее время: ${S.tv[1]}`;
+}
+
+/* ---------- действия ---------- */
+function addRow() {
+  push();
+  const at = focusRow >= 0 && focusRow < S.rows.length ? focusRow + 1 : S.rows.length;
+  S.rows.splice(at, 0, blank());
+  S.rows.forEach((r, i) => { if (i) r.mk = r.time = ""; });
+  push(); render();
+  const inp = document.querySelector(`input[data-i="${at}"][data-k="point"]`); if (inp) inp.focus();
+}
+function removeWind() {
+  push();
+  S.rows.forEach((r, i) => { r.wd = r.ws = ""; r.aw = null; if (i) r.mk = r.time = ""; });
+  S.total = ""; S.tv = [0, "0:00"];
+  push(); render();
+}
+function newRoute() { push(); S = newState(); $("#warn").style.display = "none"; push(); render(); }
+
+function reverse() {
+  const rd = S.rows.filter(r => tr(r.point)).map(r => ({
+    point: tr(r.point), zmpu: tr(r.zmpu), distance: tr(r.distance), wd: tr(r.wd), ws: tr(r.ws), note: r.note }));
+  const n = rd.length;
+  if (n < 2) { alert("Недостаточно ППМ"); return; }
+  push();
+  const ed = Array(n).fill(""), es = Array(n).fill(""); let cd = "", cs = "";
+  for (let i = 1; i < n; i++) {
+    if (rd[i - 1].wd) cd = rd[i - 1].wd;
+    if (rd[i - 1].ws) cs = rd[i - 1].ws;
+    ed[i] = cd; es[i] = cs;
+  }
+  const legs = [];
+  for (let j = 1; j < n; j++) {
+    const s = n - j, it = rd[s], z = parseFloat(it.zmpu);
+    legs.push({ zmpu: isNaN(z) ? "" : String(pyRound((z + 180) % 360)), distance: it.distance, wd: ed[s], ws: es[s] });
+  }
+  const sp = S.speed; S = newState(Math.max(10, n)); S.speed = sp;
+  [...rd].reverse().forEach((it, i) => {
+    const r = S.rows[i]; r.point = it.point;
+    r.note = i < n - 1 ? rd[n - 2 - i].note : "";
+    if (i < n - 1) {
+      const nl = legs[i], pd = i ? legs[i - 1].wd : "", ps = i ? legs[i - 1].ws : "";
+      if (nl.wd && (i === 0 || nl.wd !== pd)) r.wd = nl.wd;
+      if (nl.ws && (i === 0 || nl.ws !== ps)) r.ws = nl.ws;
+    }
+    if (i) { r.zmpu = legs[i - 1].zmpu; r.distance = legs[i - 1].distance; }
+  });
+  push(); render(); $("#warn").style.display = "block";
+}
+
+function save() {
+  const data = { speed: S.speed, rows: S.rows.map(r => ({ point: r.point, zmpu: r.zmpu, distance: r.distance, note: r.note })) };
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 4)], { type: "application/json" }));
+  a.download = "route.json"; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+$("#file").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = ""; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text()), rows = d.rows === undefined ? [] : d.rows;
+    if (!Array.isArray(rows) || !rows.every(r => r && typeof r === "object" && !Array.isArray(r))) throw 0;
+    const t = v => v == null ? "" : String(v);
+    push(); S = newState(Math.max(10, rows.length)); S.speed = t(d.speed);
+    rows.forEach((x, i) => {
+      const r = S.rows[i]; r.point = t(x.point); r.note = t(x.note);
+      if (i) { r.zmpu = t(x.zmpu); r.distance = t(x.distance); }
+    });
+    push(); render();
+  } catch (_) { alert("Не удалось открыть файл: это не сохранённый маршрут или файл повреждён."); }
+});
+
+async function pdf() {
+  const win = window.open("", "_blank");            // открываем сразу, пока действует нажатие
+  try {
+    const R = S.rows, t = v => tr(v), pts = R.filter(r => t(r.point)).map(r => t(r.point));
+    const title = pts.length >= 2 ? `Маршрут: ${pts[0]} — ${pts[pts.length - 1]}` : pts.length ? `Маршрут: ${pts[0]}` : "Маршрут: —";
+    const winds = [];
+    const rows = R.map((r, i) => ({ r, i })).filter(x => t(x.r.point)).map(({ r, i }) => {
+      if (t(r.wd) || t(r.ws)) winds.push({ ppm: t(r.point), w: `${t(r.wd)}° / ${t(r.ws)} км/ч` });
+      return i ? [t(r.point), r.distance, r.mk, r.time, r.note] : [t(r.point), "—", "—", "—", r.note];
+    });
+    let wt = "Ветер по маршруту: —";
+    if (winds.length) {
+      if (winds.every(x => x.w === winds[0].w)) wt = "Ветер по маршруту: " + winds[0].w;
+      else {
+        const parts = [winds[0].w]; let last = winds[0].w;
+        winds.slice(1).forEach(x => { if (x.w !== last) { parts.push(`после ППМ ${x.ppm} ${x.w}`); last = x.w; } });
+        wt = `Ветер по маршруту: (${parts.join("; ")})`;
+      }
+    }
+    const bytes = await window.buildPdf({
+      title, header: ["ППМ", "S", "МК", "Время", "Примечание"], rows,
+      info: [`Общее расстояние: ${S.tv[0]} км`, `Общее время: ${S.tv[1]}`, wt] });
+    const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+    if (win) win.location.href = url;
+    else { const a = document.createElement("a"); a.href = url; a.download = "route.pdf"; document.body.append(a); a.click(); a.remove(); }
+    setTimeout(() => URL.revokeObjectURL(url), 120000);
+  } catch (e) { if (win) win.close(); alert("Ошибка создания PDF: " + e.message); }
+}
+
+const HELP = [
+`Данное приложение предназначено для подготовки к полету по заранее известному маршруту с учетом ветра.`,
+`Пользователь вносит необходимые для приложения данные: ППМ, ЗМПУ и расстояние. Указывает метеорологический ветер, а именно направление (откуда дует) и скорость в км/ч. Если ветер меняется по маршруту, то пользователю достаточно указать данные ветра в ячейках напротив того ППМ, где он изменяется (при расчете маршрута предыдущие ячейки данных ветра заполнятся предыдущими значениями), а последующие ячейки последующими данными ветра. Таким образом, если ветер часто меняется по маршруту, то необходимо указывать его только напротив того ППМ, где он изменился, пустые ячейки заполняться автоматически.`,
+`В столбце «Примечание» можно писать любую необходимую пользователю информацию.`,
+`Также необходимо заполнить ячейку «Скорость», указав значение в км/ч.`,
+`При нажатии кнопки «Расчет» будет выполнен расчет элементов полета по указанным пользователем параметрам ветра, а именно МК и время (время до следующего ППМ и время, накопленное с начала полета).`,
+`При нажатии кнопки «PDF» откроется файл с формате .pdf с необходимыми для выполнения полета данными. Этот файл можно распечатать или сохранить.`,
+`Кнопка «Сохранить» дает возможность сохранить файл в формате .json для последующего использования этого маршрута в другом полете. Сохраняются все данные, кроме ветра.`,
+`Кнопка «Открыть» соответственно дает возможность открыть сохраненные маршруты.`,
+`Кнопка «Добавить ППМ» добавляет одну строку после строки, где в данный момент находится курсор.`,
+`Кнопка «Реверс» разворачивает маршрут. ВНИМАНИЕ: при нажатии этой кнопки появляется предупреждение о необходимости проверить соответствие данных в ячейках «Примечание», возможно несовпадение данных с соответствующими ППМ.`,
+`Кнопка «Убрать ветер» удаляет данные ветра в текущем маршруте.`,
+`Кнопка «Новый маршрут» очищает все ячейки.`,
+`Кнопки со стрелками «вперед – назад» позволяют отменить последние 20 изменений.`,
+`При внесении данных маршрута перемещать курсор по ячейкам можно с помощью мыши или стрелок на клавиатуре.`,
+`Также есть возможность с помощью мыши копировать, вставлять или вырезать отдельные символы, ячейки или целые строки.`];
+$("#helpText").innerHTML = HELP.map(t => `<p>${esc(t)}</p>`).join("");
+
+$("#undo").onclick = undo; $("#redo").onclick = redo;
+$("#add").onclick = addRow; $("#rev").onclick = reverse; $("#nowind").onclick = removeWind; $("#new").onclick = newRoute;
+$("#save").onclick = save; $("#open").onclick = () => $("#file").click(); $("#pdf").onclick = pdf;
+$("#help").onclick = () => $("#dlg").showModal(); $("#dlgClose").onclick = () => $("#dlg").close();
+$("#calc").onclick = calc; $("#warnOk").onclick = () => { $("#warn").style.display = "none"; };
+render(); push();
+if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+</script>
+</body>
+</html>
