@@ -12,21 +12,27 @@
 <meta name="apple-mobile-web-app-title" content="Маршрут">
 <title>Расчёт маршрута</title>
 <style>
-:root{--bg:#f0f0f0;--fg:#111;--cell:#fff;--head:#d9d9d9;--line:#777;--dis:#e4e4e4;--res:#f7f7f7}
-@media (prefers-color-scheme:dark){:root{--bg:#222;--fg:#eee;--cell:#2e2e2e;--head:#444;--line:#999;--dis:#3a3a3a;--res:#2a2a2a}}
+:root{--bg:#f0f0f0;--fg:#111;--cell:#fff;--head:#d9d9d9;--line:#777;--dis:#e4e4e4;--res:#f7f7f7;--sel:#b3d4ff}
+@media (prefers-color-scheme:dark){:root{--bg:#222;--fg:#eee;--cell:#2e2e2e;--head:#444;--line:#999;--dis:#3a3a3a;--res:#2a2a2a;--sel:#2f5b8f}}
 *{box-sizing:border-box}
 body{margin:0;padding:10px;background:var(--bg);color:var(--fg);font:15px Arial,sans-serif;text-align:center}
 .top{display:flex;justify-content:center;align-items:flex-end;gap:30px;margin:6px 0 10px;flex-wrap:wrap}
 .top label{display:block;margin-bottom:3px}
 .hist small{display:block;font-style:italic;color:gray;font-size:12px;margin-bottom:3px}
-.wrap{overflow-x:auto;max-width:100%;margin:0 auto;display:inline-block;vertical-align:top;max-width:100%}
-table{border-collapse:collapse;min-width:820px}
+.wrap{overflow-x:auto;width:100%;max-width:1100px;margin:0 auto}
+table{border-collapse:collapse;table-layout:fixed;width:100%;min-width:980px}
 th,td{border:1px solid var(--line);padding:0}
 th{background:var(--head);font-weight:normal;padding:4px 6px;height:24px}
-td.res{background:var(--res);padding:2px 6px;white-space:nowrap}
-input{width:100%;border:0;padding:5px 6px;font:16px Arial,sans-serif;background:var(--cell);color:var(--fg);text-align:center;outline-offset:-2px}
-input[data-k=point],input[data-k=note]{text-align:left}
-input:disabled{background:var(--dis)}
+td.res{background:var(--res);padding:2px 3px;white-space:nowrap}
+td.e{background:var(--cell)}td.dis{background:var(--dis)}td.sel{background:var(--sel)}
+input,textarea{width:100%;border:0;padding:5px 6px;font:16px Arial,sans-serif;background:transparent;color:var(--fg);text-align:center;outline-offset:-2px}
+textarea{display:block;resize:none;overflow:hidden;overflow-wrap:break-word;word-break:normal;line-height:1.25;min-height:32px}
+input[data-k=point],textarea{text-align:left}
+input:disabled{background:transparent;opacity:1}
+body.drag input,body.drag textarea{user-select:none}
+.on{background:#4CAF50!important;color:#fff!important}
+#bar{display:none;position:fixed;left:8px;bottom:8px;gap:6px;background:var(--bg);border:1px solid #666;border-radius:6px;padding:6px;z-index:6;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+#bar button{min-width:0;flex:none;padding:8px 10px}
 button{font:14px Arial,sans-serif;padding:8px 12px;border:1px solid #888;border-radius:4px;background:#e1e1e1;color:#111;cursor:pointer;min-width:120px}
 button:active{background:#cfcfcf}
 .hist button{min-width:44px;font-weight:bold;font-size:16px;padding:6px 10px}
@@ -37,21 +43,24 @@ button:active{background:#cfcfcf}
 #warn button{background:#4CAF50;color:#fff;min-width:0;padding:3px 14px;margin-top:4px;font-weight:bold}
 dialog{max-width:720px;width:92vw;max-height:88vh;text-align:left;background:var(--cell);color:var(--fg);border:1px solid #666;border-radius:6px}
 dialog p{margin:0 0 10px;line-height:1.35}
-@media (max-width:640px){button{min-width:0;flex:1 1 44%}.top{gap:14px}#warn{top:auto;bottom:8px;width:150px}}
+@media (max-width:640px){button{min-width:0;flex:1 1 44%}.top{gap:14px}#warn{top:auto;bottom:64px;width:150px}}
 </style>
 </head>
 <body>
 <div class="top">
   <div><label for="speed">Скорость (км/ч)</label><input id="speed" style="width:120px;border:1px solid var(--line)" inputmode="decimal"></div>
+  <div><button id="selmode" aria-pressed="false" title="Выделение диапазона ячеек касанием первой и последней">Выделение ячеек</button></div>
   <div class="hist"><small>История</small><button id="undo" title="Назад">←</button> <button id="redo" title="Вперёд">→</button></div>
 </div>
 <div class="wrap"><table>
+<colgroup><col style="width:20%"><col span="6" style="width:9.66%"><col style="width:22%"></colgroup>
 <thead>
 <tr><th rowspan="2" style="width:22%">ППМ</th><th rowspan="2">ЗМПУ</th><th rowspan="2">Расстояние</th><th colspan="2">Ветер метео</th><th rowspan="2">МК</th><th rowspan="2">Время</th><th rowspan="2" style="width:22%">Примечание</th></tr>
 <tr><th>Напр. (°)</th><th>Скор. (км/ч)</th></tr>
 </thead>
 <tbody id="tb"></tbody>
 </table></div>
+<div id="bar"><button id="bCopy">Копировать</button><button id="bCut">Вырезать</button><button id="bPaste">Вставить</button><button id="bOff" title="Снять выделение">✕</button></div>
 <div id="warn"><div style="font-size:16px">⚠</div>Проверь<br>соответствие<br>данных<br>в примечании<br><button id="warnOk">ОК</button></div>
 <div class="btns">
   <button id="add">Добавить ППМ</button><button id="rev">Реверс</button><button id="nowind">Убрать ветер</button><button id="new">Новый маршрут</button>
@@ -90,40 +99,168 @@ function undo() { push(); if (hp > 0) { S = JSON.parse(H[--hp]); render(); } }
 function redo() { push(); if (hp < H.length - 1) { S = JSON.parse(H[++hp]); render(); } }
 
 /* ---------- таблица ---------- */
-function render() {
+const CK = ["point", "zmpu", "distance", "note"];   // столбцы, доступные для выделения
+let sel = null, anchor = null, selMode = false, drag = null, clip = "";
+const tb = $("#tb");
+
+function fit(el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
+function fitAll() { document.querySelectorAll("#tb textarea").forEach(fit); }
+
+function render(keepSel) {
+  if (!keepSel) { sel = null; anchor = null; }
   $("#speed").value = S.speed;
-  const tb = $("#tb"); tb.innerHTML = "";
+  tb.innerHTML = "";
   S.rows.forEach((r, i) => {
     const row = document.createElement("tr");
     for (const k of KEYS) {
       const td = document.createElement("td");
       if (k === "mk" || k === "time") { td.className = "res"; td.textContent = i === 0 ? "—" : r[k]; }
       else {
-        const inp = document.createElement("input");
+        const dis = i === 0 && (k === "zmpu" || k === "distance");
+        const inp = document.createElement(k === "note" ? "textarea" : "input");
+        if (k === "note") inp.rows = 1;
         inp.value = r[k]; inp.dataset.i = i; inp.dataset.k = k;
         if (k === "zmpu") inp.inputMode = "numeric";
         if (k === "distance" || k === "wd" || k === "ws") inp.inputMode = "decimal";
-        if (i === 0 && (k === "zmpu" || k === "distance")) inp.disabled = true;
-        td.append(inp);
+        inp.disabled = dis; inp.readOnly = selMode;
+        td.className = dis ? "dis" : "e"; td.append(inp);
       }
       row.append(td);
     }
     tb.append(row);
   });
   $("#total").textContent = S.total;
+  fitAll(); paintSel();
 }
-$("#tb").addEventListener("input", e => {
+
+/* ---------- выделение ячеек ---------- */
+const inSel = (i, c) => !!sel && i >= sel.r1 && i <= sel.r2 && c >= sel.c1 && c <= sel.c2;
+function paintSel() {
+  document.querySelectorAll("#tb input,#tb textarea").forEach(el =>
+    el.parentElement.classList.toggle("sel", inSel(+el.dataset.i, CK.indexOf(el.dataset.k))));
+  $("#bar").style.display = sel ? "flex" : "none";
+}
+function setSel(a, c) { sel = { r1: Math.min(a.r, c.r), r2: Math.max(a.r, c.r), c1: Math.min(a.c, c.c), c2: Math.max(a.c, c.c) }; paintSel(); }
+function clearSel() { sel = null; anchor = null; paintSel(); }
+function cellOf(el) {
+  const td = el && el.closest ? el.closest("td") : null, x = td && td.querySelector("input,textarea");
+  if (!x || x.dataset.i === undefined) return null;
+  const c = CK.indexOf(x.dataset.k); return c < 0 ? null : { r: +x.dataset.i, c };
+}
+const isDis = (i, c) => i === 0 && (c === 1 || c === 2);
+
+const toTSV = g => g.map(r => r.map(v => /[\t\n"]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v).join("\t")).join("\n");
+function parseTSV(t) {
+  t = t.replace(/\r\n?/g, "\n").replace(/\n$/, ""); const rows = []; let row = [], f = "", q = false;
+  for (let i = 0; i <= t.length; i++) {
+    const ch = t[i];
+    if (q) { if (ch === '"') { if (t[i + 1] === '"') { f += '"'; i++; } else q = false; } else if (ch === undefined) { row.push(f); rows.push(row); } else f += ch; continue; }
+    if (ch === '"' && f === "") q = true;
+    else if (ch === "\t") { row.push(f); f = ""; }
+    else if (ch === "\n" || ch === undefined) { row.push(f); rows.push(row); row = []; f = ""; }
+    else f += ch;
+  }
+  return rows;
+}
+function copySel() {
+  const g = [];
+  for (let i = sel.r1; i <= sel.r2; i++) { const row = []; for (let c = sel.c1; c <= sel.c2; c++) row.push(isDis(i, c) || !S.rows[i] ? "" : S.rows[i][CK[c]]); g.push(row); }
+  clip = toTSV(g);
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(clip).catch(() => {});
+}
+function clearCells() {
+  push();
+  for (let i = sel.r1; i <= sel.r2; i++) for (let c = sel.c1; c <= sel.c2; c++) if (!isDis(i, c)) S.rows[i][CK[c]] = "";
+  push(); render(true);
+}
+function cutSel() { copySel(); clearCells(); }
+function pasteText(t, at) {
+  const g = parseTSV(t); if (!g.length) return;
+  const r0 = sel ? sel.r1 : at.r, c0 = sel ? sel.c1 : at.c, one = g.length === 1 && g[0].length === 1;
+  const rr = one && sel ? sel.r2 : r0 + g.length - 1;
+  const cc = one && sel ? sel.c2 : Math.min(CK.length - 1, c0 + Math.max(...g.map(x => x.length)) - 1);
+  push();
+  while (S.rows.length <= rr) S.rows.push(blank());
+  for (let i = r0; i <= rr; i++) for (let c = c0; c <= cc; c++) {
+    if (isDis(i, c)) continue;
+    const v = one ? g[0][0] : (g[i - r0] || [])[c - c0];
+    if (v !== undefined) S.rows[i][CK[c]] = v;
+  }
+  push(); render(true); setSel({ r: r0, c: c0 }, { r: rr, c: cc });
+}
+async function pasteBtn() {
+  if (!sel) return; let t = clip;
+  try { if (navigator.clipboard && navigator.clipboard.readText) t = await navigator.clipboard.readText(); } catch (_) {}
+  if (t) pasteText(t, null);
+}
+
+tb.addEventListener("input", e => {
   const { i, k } = e.target.dataset; if (i === undefined) return;
   S.rows[i][k] = e.target.value;
   if (k === "wd" || k === "ws") S.rows[i].aw = null;
+  if (e.target.tagName === "TEXTAREA") fit(e.target);
 });
-$("#tb").addEventListener("change", push);
-$("#tb").addEventListener("focusin", e => { if (e.target.dataset.i !== undefined) focusRow = +e.target.dataset.i; });
-$("#tb").addEventListener("keydown", e => {
-  const d = { ArrowDown: 1, Enter: 1, ArrowUp: -1 }[e.key]; if (!d || !e.target.dataset.k) return;
-  const list = [...document.querySelectorAll(`input[data-k="${e.target.dataset.k}"]:not(:disabled)`)];
-  const nx = list[list.indexOf(e.target) + d]; if (nx) { e.preventDefault(); nx.focus(); nx.select(); }
+tb.addEventListener("change", push);
+tb.addEventListener("focusin", e => { if (e.target.dataset.i !== undefined) focusRow = +e.target.dataset.i; });
+tb.addEventListener("keydown", e => {
+  const el = e.target, k = el.dataset.k; if (!k) return;
+  const ta = el.tagName === "TEXTAREA"; let d = 0;
+  if (e.key === "Enter" && !(ta && e.shiftKey)) d = 1;
+  else if (e.key === "ArrowDown" && (!ta || el.selectionStart === el.value.length)) d = 1;
+  else if (e.key === "ArrowUp" && (!ta || el.selectionStart === 0)) d = -1;
+  if (!d) return;
+  const list = [...document.querySelectorAll(`[data-k="${k}"]:not(:disabled)`)];
+  const nx = list[list.indexOf(el) + d]; if (nx) { e.preventDefault(); nx.focus(); nx.select(); }
 });
+// выделение мышью: нажать в ячейке и протянуть на другие ячейки
+tb.addEventListener("mousedown", e => {
+  if (selMode || e.button !== 0) return;
+  if (sel) clearSel();
+  const c = cellOf(e.target); drag = c ? { c } : null;
+});
+tb.addEventListener("mousemove", e => {
+  if (!drag || e.buttons !== 1) return;
+  const c = cellOf(document.elementFromPoint(e.clientX, e.clientY));
+  if (!c || (!sel && c.r === drag.c.r && c.c === drag.c.c)) return;
+  document.body.classList.add("drag");
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  getSelection().removeAllRanges(); setSel(drag.c, c);
+});
+addEventListener("mouseup", () => { drag = null; document.body.classList.remove("drag"); });
+// режим «Выделение ячеек» (планшет): касание первой и последней ячейки диапазона
+tb.addEventListener("click", e => {
+  if (!selMode) return; const c = cellOf(e.target); if (!c) return;
+  e.preventDefault();
+  if (!anchor) { anchor = c; setSel(c, c); } else { setSel(anchor, c); anchor = null; }
+});
+$("#selmode").onclick = () => {
+  selMode = !selMode;
+  $("#selmode").classList.toggle("on", selMode); $("#selmode").setAttribute("aria-pressed", String(selMode));
+  document.querySelectorAll("#tb input,#tb textarea").forEach(el => { el.readOnly = selMode; });
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  clearSel();
+};
+document.addEventListener("keydown", e => {
+  if (!sel) return;
+  const a = document.activeElement;
+  if (a && a.matches && a.matches("input,textarea") && !a.readOnly) return;
+  const k = e.key.toLowerCase();
+  if (e.key === "Escape") clearSel();
+  else if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); clearCells(); }
+  else if ((e.ctrlKey || e.metaKey) && k === "c") { e.preventDefault(); copySel(); }
+  else if ((e.ctrlKey || e.metaKey) && k === "x") { e.preventDefault(); cutSel(); }
+  else if ((e.ctrlKey || e.metaKey) && k === "v") { e.preventDefault(); pasteBtn(); }
+});
+document.addEventListener("copy", e => { if (!sel) return; e.preventDefault(); copySel(); e.clipboardData.setData("text/plain", clip); });
+document.addEventListener("cut", e => { if (!sel) return; e.preventDefault(); copySel(); e.clipboardData.setData("text/plain", clip); clearCells(); });
+document.addEventListener("paste", e => {
+  const t = e.clipboardData.getData("text/plain"), a = document.activeElement, c = cellOf(a);
+  if (sel) { e.preventDefault(); pasteText(t, null); }
+  else if (c && (t.includes("\t") || (t.includes("\n") && a.tagName !== "TEXTAREA"))) { e.preventDefault(); pasteText(t, c); }
+});
+$("#bCopy").onclick = copySel; $("#bCut").onclick = cutSel; $("#bPaste").onclick = pasteBtn; $("#bOff").onclick = clearSel;
+addEventListener("resize", fitAll);
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAll);
 $("#speed").addEventListener("input", e => { S.speed = e.target.value; });
 $("#speed").addEventListener("change", push);
 
@@ -315,16 +452,16 @@ const HELP = [
 `В столбце «Примечание» можно писать любую необходимую пользователю информацию.`,
 `Также необходимо заполнить ячейку «Скорость», указав значение в км/ч.`,
 `При нажатии кнопки «Расчет» будет выполнен расчет элементов полета по указанным пользователем параметрам ветра, а именно МК и время (время до следующего ППМ и время, накопленное с начала полета).`,
-`При нажатии кнопки «PDF» откроется файл с формате .pdf с необходимыми для выполнения полета данными. Этот файл можно распечатать или сохранить.`,
+`При нажатии кнопки «PDF» откроется отдельная вкладка с необходимыми для выполнения полета данными. Этот вкладку можно распечатать или сохранить.`,
 `Кнопка «Сохранить» дает возможность сохранить файл в формате .json для последующего использования этого маршрута в другом полете. Сохраняются все данные, кроме ветра.`,
 `Кнопка «Открыть» соответственно дает возможность открыть сохраненные маршруты.`,
-`Кнопка «Добавить ППМ» добавляет одну строку после строки, где в данный момент находится курсор.`,
+`Кнопка «Добавить ППМ» вставляет строку после строки с которой в данный момент работает пользователь. Если пользователь в данный момент не работает с какой-либо строкой — строка добавляется в конец.`,
 `Кнопка «Реверс» разворачивает маршрут. ВНИМАНИЕ: при нажатии этой кнопки появляется предупреждение о необходимости проверить соответствие данных в ячейках «Примечание», возможно несовпадение данных с соответствующими ППМ.`,
 `Кнопка «Убрать ветер» удаляет данные ветра в текущем маршруте.`,
 `Кнопка «Новый маршрут» очищает все ячейки.`,
 `Кнопки со стрелками «вперед – назад» позволяют отменить последние 20 изменений.`,
-`При внесении данных маршрута перемещать курсор по ячейкам можно с помощью мыши или стрелок на клавиатуре.`,
-`Также есть возможность с помощью мыши копировать, вставлять или вырезать отдельные символы, ячейки или целые строки.`];
+`При внесении данных маршрута на ПК в браузере перемещать курсор по ячейкам можно с помощью мыши или стрелок на клавиатуре. Также есть возможность с помощью мыши копировать, вставлять или вырезать отдельные символы, ячейки или целые строки.`,
+`На планшете для действий с ячейками включите «Выделение ячеек»: коснитесь первой и затем последней ячейки диапазона. Копирование и вставка текста доступны через системное меню.`];
 $("#helpText").innerHTML = HELP.map(t => `<p>${esc(t)}</p>`).join("");
 
 $("#undo").onclick = undo; $("#redo").onclick = redo;

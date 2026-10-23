@@ -1,6 +1,6 @@
 /* Service worker: работа без интернета. Файлы кэшируются при первом запуске;
    при наличии сети кэш тихо обновляется (изменения видны со следующего запуска). */
-const CACHE = "route-calculator-v1";
+const CACHE = "route-calculator-v2";
 const FILES = ["./", "index.html", "pdf.js", "manifest.webmanifest", "fonts/DejaVuSans.ttf",
   "icons/icon-192.png", "icons/icon-512.png", "icons/maskable-512.png", "icons/apple-touch-icon.png"];
 self.addEventListener("install", e => {
