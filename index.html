@@ -204,13 +204,22 @@ tb.addEventListener("change", push);
 tb.addEventListener("focusin", e => { if (e.target.dataset.i !== undefined) focusRow = +e.target.dataset.i; });
 tb.addEventListener("keydown", e => {
   const el = e.target, k = el.dataset.k; if (!k) return;
-  const ta = el.tagName === "TEXTAREA"; let d = 0;
-  if (e.key === "Enter" && !(ta && e.shiftKey)) d = 1;
-  else if (e.key === "ArrowDown" && (!ta || el.selectionStart === el.value.length)) d = 1;
-  else if (e.key === "ArrowUp" && (!ta || el.selectionStart === 0)) d = -1;
-  if (!d) return;
-  const list = [...document.querySelectorAll(`[data-k="${k}"]:not(:disabled)`)];
-  const nx = list[list.indexOf(el) + d]; if (nx) { e.preventDefault(); nx.focus(); nx.select(); }
+  const ta = el.tagName === "TEXTAREA", n = el.value.length, a = el.selectionStart, z = el.selectionEnd;
+  const all = a === 0 && z === n, atStart = a === 0 && z === 0, atEnd = a === n && z === n;
+  const plain = !(e.shiftKey || e.ctrlKey || e.altKey || e.metaKey);
+  let dr = 0, dc = 0;
+  if (e.key === "Enter" && !(ta && e.shiftKey)) dr = 1;
+  else if (plain && e.key === "ArrowDown" && (!ta || all || atEnd)) dr = 1;
+  else if (plain && e.key === "ArrowUp" && (!ta || all || atStart)) dr = -1;
+  else if (plain && e.key === "ArrowLeft" && (all || atStart)) dc = -1;
+  else if (plain && e.key === "ArrowRight" && (all || atEnd)) dc = 1;
+  if (!dr && !dc) return;
+  // влево/вправо — по ячейкам строки, вверх/вниз — по ячейкам столбца
+  const list = dc
+    ? [...tb.rows[+el.dataset.i].querySelectorAll("input,textarea")]
+    : [...tb.querySelectorAll(`[data-k="${k}"]`)];
+  const cells = list.filter(x => !x.disabled), nx = cells[cells.indexOf(el) + dr + dc];
+  if (nx) { e.preventDefault(); nx.focus(); nx.select(); }
 });
 // выделение мышью: нажать в ячейке и протянуть на другие ячейки
 tb.addEventListener("mousedown", e => {
