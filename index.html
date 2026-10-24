@@ -12,12 +12,16 @@
 <meta name="apple-mobile-web-app-title" content="Маршрут">
 <title>Расчёт маршрута</title>
 <style>
-:root{--bg:#f0f0f0;--fg:#111;--cell:#fff;--head:#d9d9d9;--line:#777;--dis:#e4e4e4;--res:#f7f7f7;--sel:#b3d4ff}
-@media (prefers-color-scheme:dark){:root{--bg:#222;--fg:#eee;--cell:#2e2e2e;--head:#444;--line:#999;--dis:#3a3a3a;--res:#2a2a2a;--sel:#2f5b8f}}
+:root{--bg:#f0f0f0;--fg:#111;--cell:#fff;--head:#d9d9d9;--line:#777;--dis:#e4e4e4;--res:#f7f7f7;--sel:#b3d4ff;--ttl:#000;--bw:140px;--bh:40px}
+@media (prefers-color-scheme:dark){:root{--bg:#222;--fg:#eee;--cell:#2e2e2e;--head:#444;--line:#999;--dis:#3a3a3a;--res:#2a2a2a;--sel:#2f5b8f;--ttl:#eee}}
 *{box-sizing:border-box}
 body{margin:0;padding:10px;background:var(--bg);color:var(--fg);font:15px Arial,sans-serif;text-align:center}
-.top{display:flex;justify-content:center;align-items:flex-end;gap:30px;margin:6px 0 10px;flex-wrap:wrap}
-.top label{display:block;margin-bottom:3px}
+.top{display:grid;grid-template-columns:1fr auto 1fr;align-items:start;gap:10px;width:100%;max-width:1100px;margin:6px auto 10px}
+.ttl{font-size:24px;font-weight:bold;line-height:1.1;color:var(--ttl);text-align:left}
+.dev{font-size:12px;font-style:italic;color:gray;text-align:right}
+.ctl{display:flex;justify-content:center;align-items:flex-end;gap:10px;flex-wrap:wrap}
+#speed{height:var(--bh)}
+.ctl label{display:block;margin-bottom:3px}
 .hist small{display:block;font-style:italic;color:gray;font-size:12px;margin-bottom:3px}
 .wrap{overflow-x:auto;width:100%;max-width:1100px;margin:0 auto}
 table{border-collapse:collapse;table-layout:fixed;width:100%;min-width:980px}
@@ -32,25 +36,33 @@ input:disabled{background:transparent;opacity:1}
 body.drag input,body.drag textarea{user-select:none}
 .on{background:#4CAF50!important;color:#fff!important}
 #bar{display:none;position:fixed;left:8px;bottom:8px;gap:6px;background:var(--bg);border:1px solid #666;border-radius:6px;padding:6px;z-index:6;box-shadow:0 2px 8px rgba(0,0,0,.3)}
-#bar button{min-width:0;flex:none;padding:8px 10px}
-button{font:14px Arial,sans-serif;padding:8px 12px;border:1px solid #888;border-radius:4px;background:#e1e1e1;color:#111;cursor:pointer;min-width:120px}
+#bar{flex-wrap:wrap;max-width:calc(100vw - 16px)}
+#bar button{flex:none}
+button{font:14px Arial,sans-serif;width:var(--bw);height:var(--bh);padding:0;border:1px solid #888;border-radius:4px;background:#e1e1e1;color:#111;cursor:pointer}
 button:active{background:#cfcfcf}
-.hist button{min-width:44px;font-weight:bold;font-size:16px;padding:6px 10px}
+.hist button{font-weight:bold;font-size:18px}
+.hist{display:flex;flex-direction:column}
+.hist div{display:flex;gap:10px}
 .btns{display:flex;justify-content:center;flex-wrap:wrap;gap:10px;margin:10px 0}
-#calc{background:#4CAF50;color:#fff;font:bold 18px Arial,sans-serif;padding:14px 40px;border-color:#3d8b40;margin:10px 0}
+#calc{background:#4CAF50;color:#fff;font:bold 18px Arial,sans-serif;width:auto;height:auto;padding:14px 40px;border-color:#3d8b40;margin:10px 0}
 #total{white-space:pre-line;font-weight:bold;font-size:16px;min-height:44px;text-align:left;display:inline-block}
 #warn{display:none;position:fixed;right:8px;top:120px;width:110px;background:#FFEB3B;color:#B71C1C;border:1px solid #333;padding:6px;font:bold 12px Arial;z-index:5}
-#warn button{background:#4CAF50;color:#fff;min-width:0;padding:3px 14px;margin-top:4px;font-weight:bold}
+#warn button{background:#4CAF50;color:#fff;width:auto;height:auto;padding:3px 14px;margin-top:4px;font-weight:bold}
 dialog{max-width:720px;width:92vw;max-height:88vh;text-align:left;background:var(--cell);color:var(--fg);border:1px solid #666;border-radius:6px}
 dialog p{margin:0 0 10px;line-height:1.35}
-@media (max-width:640px){button{min-width:0;flex:1 1 44%}.top{gap:14px}#warn{top:auto;bottom:64px;width:150px}}
+@media (max-width:900px){.top{grid-template-columns:1fr 1fr}.ctl{grid-column:1/-1;order:3}}
+@media (max-width:640px){:root{--bw:42vw}#warn{top:auto;bottom:64px;width:150px}}
 </style>
 </head>
 <body>
 <div class="top">
-  <div><label for="speed">Скорость (км/ч)</label><input id="speed" style="width:120px;border:1px solid var(--line)" inputmode="decimal"></div>
-  <div><button id="selmode" aria-pressed="false" title="Выделение диапазона ячеек касанием первой и последней">Выделение ячеек</button></div>
-  <div class="hist"><small>История</small><button id="undo" title="Назад">←</button> <button id="redo" title="Вперёд">→</button></div>
+  <div class="ttl">Расчет маршрута</div>
+  <div class="ctl">
+    <div><label for="speed">Скорость (км/ч)</label><input id="speed" style="width:120px;border:1px solid var(--line)" inputmode="decimal"></div>
+    <div><button id="selmode" aria-pressed="false" title="Выделение диапазона ячеек касанием первой и последней">Выделение ячеек</button></div>
+    <div class="hist"><small>История</small><div><button id="undo" title="Назад">←</button><button id="redo" title="Вперёд">→</button></div></div>
+  </div>
+  <div class="dev">Разработчик Лёвочкин Виктор</div>
 </div>
 <div class="wrap"><table>
 <colgroup><col style="width:20%"><col span="6" style="width:9.66%"><col style="width:22%"></colgroup>
